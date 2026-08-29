@@ -1,5 +1,5 @@
 {
-  "name": "kult-origin",
+  "name": "kult-originn",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,18 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@payloadcms/db-postgres": "^3.88.0",
-    "@payloadcms/next": "^3.88.0",
-    "@payloadcms/richtext-lexical": "^3.88.0",
-    "clsx": "^2.1.1",
-    "framer-motion": "^13.1.1",
-    "lucide-react": "^1.34.0",
     "next": "16.3.2",
-    "payload": "^3.88.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "sharp": "^0.35.3",
-    "tailwind-merge": "^3.6.0"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
