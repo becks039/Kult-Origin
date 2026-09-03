@@ -1,7 +1,10 @@
-import type { NextConfig } from "next";
+import { withPayload } from '@payloadcms/next/withPayload'
 
-const nextConfig: NextConfig = {
-  /* config options here */
-};
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  images: {
+    qualities: [75, 100],
+  },
+}
 
-export default nextConfig;
+export default withPayload(nextConfig)

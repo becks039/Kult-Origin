@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-, "src/app/bagDrawer/page.jsx", "src/app/batch-001/page.tsx", "src/app/bag/page.jsx", "src/app/rewards/page.jsx", "src/asrc/app/cart/page.jsxrc/app/shop/page.tsx"  ],
+, "src/app/bagDrawer/page.jsx", "src/app/batch-001/page.tsx", "src/app/bag/page.jsx", "src/app/rewards/page.tsx", "src/asrc/app/cart/page.jsxrc/app/shop/page.tsx", "src/app/(payload)/admin/ImportMap.js", "src/app/shop/page.jsx"  ],
   "exclude": ["node_modules"]
 }

@@ -1,0 +1,592 @@
+'use client'
+
+import React, { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  ShieldAlert,
+  KeyRound,
+  ArrowLeft,
+  Lock,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  UserPlus,
+  Mail,
+  User,
+  Send,
+  Check,
+} from 'lucide-react'
+
+const BACKGROUND_SLIDES = [
+  'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=1920&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=1920&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=1920&auto=format&fit=crop',
+]
+
+export default function Batch001Page() {
+  const router = useRouter()
+
+  const [mounted, setMounted] = useState(false)
+
+  const [activeTab, setActiveTab] =
+    useState<'unlock' | 'request'>('unlock')
+
+  // ==========================================================
+  // KEY VERIFICATION
+  // ==========================================================
+
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState(false)
+  const [isAuthenticating, setIsAuthenticating] = useState(false)
+
+  // ==========================================================
+  // ACCESS REQUEST
+  // ==========================================================
+
+  const [registerName, setRegisterName] = useState('')
+  const [registerEmail, setRegisterEmail] = useState('')
+  const [isRequesting, setIsRequesting] = useState(false)
+  const [requestSuccess, setRequestSuccess] = useState(false)
+
+  // ==========================================================
+  // BACKGROUND
+  // ==========================================================
+
+  const [bgIndex, setBgIndex] = useState(0)
+
+  // ==========================================================
+  // INITIAL LOAD
+  // ==========================================================
+
+  useEffect(() => {
+    setMounted(true)
+
+    /*
+      IMPORTANT:
+
+      Agar access pehle se granted hai to Batch-001 page
+      dobara unlock screen show nahi karega.
+
+      User directly Shop par jayega.
+    */
+
+    const accessGranted =
+      localStorage.getItem('kult_batch001_access') === 'true'
+
+    if (accessGranted) {
+      router.replace('/shop')
+      return
+    }
+  }, [router])
+
+  // ==========================================================
+  // BACKGROUND SLIDESHOW
+  // ==========================================================
+
+  useEffect(() => {
+    if (!mounted) return
+
+    const timer = setInterval(() => {
+      setBgIndex(
+        (prev) => (prev + 1) % BACKGROUND_SLIDES.length
+      )
+    }, 4000)
+
+    return () => clearInterval(timer)
+  }, [mounted])
+
+  // ==========================================================
+  // KEY VERIFICATION
+  // ==========================================================
+
+  const handlePasswordSubmit = async (
+    e: React.FormEvent
+  ) => {
+    e.preventDefault()
+
+    if (!password.trim()) {
+      return
+    }
+
+    setIsAuthenticating(true)
+    setError(false)
+
+    const inputCleanKey =
+      password.trim().toUpperCase()
+
+    try {
+      const response = await fetch('/api/verify-key', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          key: inputCleanKey,
+        }),
+      })
+
+      if (!response.ok) {
+        setError(true)
+        return
+      }
+
+      /*
+        ACCESS GRANTED
+
+        Old key:
+        kult_vault_unlocked
+
+        New key:
+        kult_batch001_access
+
+        We use a Batch-001 specific access flag.
+      */
+
+      localStorage.setItem(
+        'kult_batch001_access',
+        'true'
+      )
+
+      /*
+        Remove old flag if it exists.
+        This prevents old logic from interfering.
+      */
+
+      localStorage.removeItem(
+        'kult_vault_unlocked'
+      )
+
+      /*
+        IMPORTANT:
+
+        Do NOT show products here.
+
+        Immediately send user to Shop.
+      */
+
+      router.replace('/shop')
+    } catch (error) {
+      console.error(
+        'KEY VERIFICATION ERROR:',
+        error
+      )
+
+      setError(true)
+    } finally {
+      setIsAuthenticating(false)
+    }
+  }
+
+  // ==========================================================
+  // REQUEST ACCESS KEY
+  // ==========================================================
+
+  const handleRequestKeySubmit = async (
+    e: React.FormEvent
+  ) => {
+    e.preventDefault()
+
+    if (!registerEmail || !registerName) {
+      return
+    }
+
+    setIsRequesting(true)
+    setRequestSuccess(false)
+
+    try {
+      const response = await fetch(
+        '/api/request-access-key',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: registerName,
+            email: registerEmail,
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(
+          'Failed to request access key'
+        )
+      }
+
+      setRequestSuccess(true)
+    } catch (error) {
+      console.error(
+        'REQUEST ACCESS ERROR:',
+        error
+      )
+
+      setRequestSuccess(true)
+    } finally {
+      setIsRequesting(false)
+    }
+  }
+
+  // ==========================================================
+  // MOUNT GUARD
+  // ==========================================================
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[#0A0B0D]" />
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0A0B0D] text-[#E8E2D6] font-mono selection:bg-[#D4AF37] selection:text-black relative overflow-x-hidden">
+
+      {/* ======================================================
+          LOCKED VAULT
+      ====================================================== */}
+
+      <div className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 md:px-8 py-16 sm:py-20 overflow-hidden">
+
+        {/* BACKGROUND SLIDES */}
+
+        {BACKGROUND_SLIDES.map(
+          (slide, idx) => (
+            <div
+              key={slide}
+              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out bg-cover bg-center bg-no-repeat scale-105 ${
+                idx === bgIndex
+                  ? 'opacity-70'
+                  : 'opacity-0'
+              }`}
+              style={{
+                backgroundImage: `url(${slide})`,
+              }}
+            />
+          )
+        )}
+
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0A0B0D] via-[#0A0B0D]/60 to-[#0A0B0D]/75 z-10" />
+
+        <div className="absolute inset-0 bg-[radial-gradient(#D4AF37_1px,transparent_1px)] [background-size:32px_32px] opacity-20 pointer-events-none z-10" />
+
+        {/* HOME */}
+
+        <button
+          onClick={() => router.push('/')}
+          className="absolute top-4 left-4 sm:top-8 sm:left-8 z-30 flex items-center space-x-2 text-[10px] sm:text-xs text-white/80 hover:text-[#D4AF37] uppercase tracking-[0.2em] transition-all cursor-pointer bg-black/70 backdrop-blur-md px-3.5 py-2 sm:px-4 sm:py-2 rounded-full border border-white/20 active:scale-95"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <span>Home</span>
+        </button>
+
+        {/* LOCKED PANEL */}
+
+        <div className="relative z-20 w-full max-w-3xl bg-[#12141B]/95 border border-[#D4AF37]/40 p-5 sm:p-10 md:p-12 rounded-2xl sm:rounded-3xl backdrop-blur-xl shadow-[0_25px_80px_rgba(0,0,0,0.95)] space-y-6 sm:space-y-8 mt-10 sm:mt-0">
+
+          {/* HEADER */}
+
+          <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-4 border-b border-[#2D323E] pb-6 sm:pb-8">
+
+            <div className="space-y-2 text-center sm:text-left">
+
+              <div className="inline-flex items-center space-x-1.5 text-[9px] sm:text-[10px] text-[#D4AF37] bg-[#D4AF37]/15 border border-[#D4AF37]/40 px-3 py-1 rounded-full uppercase tracking-[0.2em] font-bold">
+
+                <Sparkles className="w-3 h-3" />
+
+                <span>
+                  RESTRICTED ACCESS
+                </span>
+
+              </div>
+
+              <h1 className="text-2xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-[#E8E2D6]">
+                CLANDESTINE VAULT
+              </h1>
+
+              <p className="text-[11px] sm:text-xs text-white/70 uppercase tracking-widest max-w-md">
+                BATCH 001 IS EXCLUSIVELY
+                ALLOCATED VIA FOUNDER KEYS
+              </p>
+
+            </div>
+
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#D4AF37]/15 border border-[#D4AF37]/50 flex items-center justify-center text-[#D4AF37] shadow-[0_0_25px_rgba(212,175,55,0.25)] shrink-0">
+              <Lock className="w-7 h-7 sm:w-8 sm:h-8 animate-pulse" />
+            </div>
+
+          </div>
+
+          {/* TABS */}
+
+          <div className="grid grid-cols-2 gap-2 bg-[#0A0B0D] p-1.5 rounded-xl border border-[#2D323E]">
+
+            <button
+              type="button"
+              onClick={() =>
+                setActiveTab('unlock')
+              }
+              className={`py-2.5 text-center text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] rounded-lg transition-all cursor-pointer flex items-center justify-center space-x-2 ${
+                activeTab === 'unlock'
+                  ? 'bg-[#D4AF37] text-black shadow-lg'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>ENTER KEY</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActiveTab('request')
+              }
+              className={`py-2.5 text-center text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] rounded-lg transition-all cursor-pointer flex items-center justify-center space-x-2 ${
+                activeTab === 'request'
+                  ? 'bg-[#D4AF37] text-black shadow-lg'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>REQUEST ACCESS</span>
+            </button>
+
+          </div>
+
+          {/* ENTER KEY */}
+
+          {activeTab === 'unlock' && (
+            <form
+              onSubmit={
+                handlePasswordSubmit
+              }
+              className="space-y-4 sm:space-y-6"
+            >
+
+              <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+
+                <div className="relative flex-1">
+
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(
+                        e.target.value
+                      )
+                      setError(false)
+                    }}
+                    placeholder="KEY: ORIGIN50"
+                    className={`w-full bg-[#0A0B0D]/95 border ${
+                      error
+                        ? 'border-red-500'
+                        : 'border-[#2D323E] focus:border-[#D4AF37]'
+                    } px-4 py-3.5 sm:px-6 sm:py-4 text-center sm:text-left text-xs sm:text-sm font-bold tracking-[0.25em] uppercase text-[#E8E2D6] placeholder:text-white/30 outline-none rounded-xl transition-all shadow-inner`}
+                  />
+
+                  <KeyRound className="w-4 h-4 text-white/30 absolute right-4 top-1/2 -translate-y-1/2 hidden sm:block" />
+
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={
+                    isAuthenticating
+                  }
+                  className="w-full sm:w-auto px-6 py-3.5 sm:py-4 bg-gradient-to-r from-[#D4AF37] to-[#b8952b] text-black font-black text-xs uppercase tracking-[0.15em] hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer rounded-xl shadow-[0_4px_25px_rgba(212,175,55,0.3)] shrink-0 disabled:opacity-50"
+                >
+                  {isAuthenticating
+                    ? 'VERIFYING...'
+                    : 'AUTHENTICATE'}
+                </button>
+
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] sm:text-[11px] text-white/50 uppercase tracking-widest text-center sm:text-left">
+
+                <span>
+                  TEST KEY:{' '}
+                  <strong className="text-[#D4AF37]">
+                    ORIGIN50
+                  </strong>
+                </span>
+
+                <span>
+                  NO KEY? CLICK "REQUEST ACCESS"
+                </span>
+
+              </div>
+
+              {error && (
+                <div className="flex items-center justify-center space-x-2 bg-red-500/10 border border-red-500/40 p-3 rounded-xl text-red-400 text-[11px] tracking-widest uppercase">
+                  <ShieldAlert className="w-4 h-4 shrink-0" />
+
+                  <span>
+                    INVALID KEY // REGISTER
+                    FOR ACCESS
+                  </span>
+                </div>
+              )}
+
+            </form>
+          )}
+
+          {/* REQUEST ACCESS */}
+
+          {activeTab === 'request' && (
+            <div className="space-y-4">
+
+              {!requestSuccess ? (
+                <form
+                  onSubmit={
+                    handleRequestKeySubmit
+                  }
+                  className="space-y-4"
+                >
+
+                  <p className="text-[11px] sm:text-xs text-white/70 uppercase tracking-wider">
+                    Provide your profile
+                    details to register
+                    for Batch 001
+                    allocation. An
+                    authentication key
+                    will be dispatched
+                    to your email.
+                  </p>
+
+                  <div className="space-y-3">
+
+                    <div className="relative">
+
+                      <input
+                        type="text"
+                        required
+                        value={
+                          registerName
+                        }
+                        onChange={(e) =>
+                          setRegisterName(
+                            e.target.value
+                          )
+                        }
+                        placeholder="FULL NAME"
+                        className="w-full bg-[#0A0B0D]/95 border border-[#2D323E] focus:border-[#D4AF37] px-4 py-3.5 text-xs font-bold tracking-widest uppercase text-[#E8E2D6] placeholder:text-white/30 outline-none rounded-xl"
+                      />
+
+                      <User className="w-4 h-4 text-white/30 absolute right-4 top-1/2 -translate-y-1/2" />
+
+                    </div>
+
+                    <div className="relative">
+
+                      <input
+                        type="email"
+                        required
+                        value={
+                          registerEmail
+                        }
+                        onChange={(e) =>
+                          setRegisterEmail(
+                            e.target.value
+                          )
+                        }
+                        placeholder="EMAIL ADDRESS"
+                        className="w-full bg-[#0A0B0D]/95 border border-[#2D323E] focus:border-[#D4AF37] px-4 py-3.5 text-xs font-bold tracking-widest uppercase text-[#E8E2D6] placeholder:text-white/30 outline-none rounded-xl"
+                      />
+
+                      <Mail className="w-4 h-4 text-white/30 absolute right-4 top-1/2 -translate-y-1/2" />
+
+                    </div>
+
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isRequesting}
+                    className="w-full py-4 bg-[#D4AF37] text-black font-black text-xs uppercase tracking-[0.2em] hover:bg-[#b8952b] active:scale-[0.98] transition-all cursor-pointer rounded-xl shadow-[0_4px_20px_rgba(212,175,55,0.25)] flex items-center justify-center space-x-2 disabled:opacity-50"
+                  >
+
+                    <Send className="w-4 h-4" />
+
+                    <span>
+                      {isRequesting
+                        ? 'DISPATCHING REQUEST...'
+                        : 'REQUEST ACCESS KEY'}
+                    </span>
+
+                  </button>
+
+                </form>
+              ) : (
+
+                <div className="bg-emerald-500/10 border border-emerald-500/40 p-5 rounded-2xl space-y-3 text-center">
+
+                  <div className="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto">
+                    <Check className="w-6 h-6" />
+                  </div>
+
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-400">
+                    ACCESS REQUEST
+                    RECEIVED
+                  </h3>
+
+                  <p className="text-[11px] text-white/80 tracking-wide">
+                    We have queued your
+                    profile. Check{' '}
+                    <span className="text-[#D4AF37] font-bold">
+                      {registerEmail}
+                    </span>{' '}
+                    for your Batch 001
+                    allocation key.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRequestSuccess(false)
+                      setActiveTab('unlock')
+                    }}
+                    className="mt-2 text-[10px] text-[#D4AF37] uppercase underline font-bold tracking-widest cursor-pointer"
+                  >
+                    RETURN TO KEY
+                    VERIFICATION
+                  </button>
+
+                </div>
+
+              )}
+
+            </div>
+          )}
+
+          {/* FOOTER */}
+
+          <div className="flex items-center justify-between border-t border-[#2D323E] pt-4 text-[9px] sm:text-[10px] text-white/40 uppercase tracking-widest">
+
+            <span>
+              SYSTEM: KULT ORIGIN OS
+              v2.06
+            </span>
+
+            <div className="flex space-x-1.5">
+
+              {BACKGROUND_SLIDES.map(
+                (slide, i) => (
+                  <span
+                    key={slide}
+                    className={`h-1.5 rounded-full transition-all ${
+                      i === bgIndex
+                        ? 'w-5 bg-[#D4AF37]'
+                        : 'w-1.5 bg-white/30'
+                    }`}
+                  />
+                )
+              )}
+
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,5 +1,8 @@
 'use client';
 
+import { getPayload } from 'payload';
+import config from '@/payload.config'
+
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';

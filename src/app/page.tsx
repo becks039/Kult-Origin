@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import ProductShowcase from "@/components/ProductShowcase";
 import Navbar from "@/components/Navbar";
 
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#070708] text-[#E8E2D6] font-satoshi selection:bg-[#D4AF37] selection:text-black">
@@ -17,7 +18,7 @@ export default function Home() {
       <FounderTierSection />
       <ProductShowcase/>
       <BrandStatement />
-      
+
       <Footer />
     </main>
   );
