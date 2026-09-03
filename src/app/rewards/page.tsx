@@ -13,7 +13,7 @@ const SLIDING_IMAGES = [
 
 export default function UGCRewardsPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [reviewType, setReviewType] = useState<'VIDEO' | 'PHOTO' | 'TEXT'>('VIDEO');
+  const [reviewType, setReviewType] = useState<'TEXT' | 'PHOTO' | 'VIDEO'>('VIDEO');
   const [formData, setFormData] = useState({
     customerId: '',
     productId: '',
@@ -23,6 +23,9 @@ export default function UGCRewardsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
+
+  // Auto calculate discount percentage base on review type
+  const targetDiscountPercentage = reviewType === 'TEXT' ? 5 : reviewType === 'PHOTO' ? 10 : 20;
 
   // Background Slider Effect
   useEffect(() => {
@@ -40,8 +43,8 @@ export default function UGCRewardsPage() {
     try {
       const mediaIds: string[] = [];
 
-      // Step 1: Upload media to Payload Media collection if file selected
-      if (selectedFile && reviewType !== 'TEXT') {
+      // Step 1: Upload media to Payload Media collection if media file selected
+      if (selectedFile) {
         const filePayload = new FormData();
         filePayload.append('file', selectedFile);
 
@@ -55,12 +58,11 @@ export default function UGCRewardsPage() {
           const uploadedId = mediaDoc.doc?.id || mediaDoc.id;
           if (uploadedId) mediaIds.push(uploadedId);
         } else {
-          throw new Error('Media upload failed. Please verify file format.');
+          throw new Error('Media file upload failed. Please verify file format.');
         }
+      } else if (reviewType !== 'TEXT') {
+        throw new Error(`Media attachment is mandatory for ${reviewType} review tier.`);
       }
-
-      // Expected discount tier map based on type
-      const targetDiscountPercentage = reviewType === 'TEXT' ? 5 : reviewType === 'PHOTO' ? 10 : 20;
 
       // Step 2: Post Review record to route handler with PENDING status for Admin Approval
       const response = await fetch('/api/ugc-review', {
@@ -75,16 +77,16 @@ export default function UGCRewardsPage() {
           content: formData.content,
           mediaIds,
           requestedDiscount: targetDiscountPercentage,
-          status: 'PENDING' // Store review in Payload CMS for admin verification
+          status: 'PENDING'
         }),
       });
 
       const result = await response.json();
 
-      if (response.ok && (result.success || result.doc)) {
+      if (response.ok && (result.success || result.doc || result.id)) {
         setSubmissionSuccess(true);
       } else {
-        setErrorMessage(result.message || 'Failed to register review in database.');
+        setErrorMessage(result.message || 'Failed to submit review to system.');
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Network communication error.');
@@ -150,7 +152,7 @@ export default function UGCRewardsPage() {
             </h1>
             
             <p className="text-[11px] sm:text-sm text-[#E8E2D6]/90 uppercase tracking-widest max-w-2xl mx-auto leading-relaxed font-mono">
-              SUBMIT GEAR VALIDATION. PAYLOAD CMS WILL VERIFY REVIEWS AND ADMIN WILL ALLOCATE PROMO DISCOUNTS DIRECTLY.
+              SUBMIT WRITTEN OR MEDIA VALIDATION. PAYLOAD CMS WILL VERIFY REVIEWS AND ALLOCATE PROMO DISCOUNTS DIRECTLY.
             </p>
           </div>
         </section>
@@ -166,6 +168,7 @@ export default function UGCRewardsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
             
+            {/* TIER 01: TEXT */}
             <div 
               onClick={() => setReviewType('TEXT')}
               className={`cursor-pointer p-5 sm:p-6 rounded-2xl border transition-all duration-300 backdrop-blur-md active:scale-98 ${
@@ -181,6 +184,7 @@ export default function UGCRewardsPage() {
               </p>
             </div>
 
+            {/* TIER 02: PHOTO */}
             <div 
               onClick={() => setReviewType('PHOTO')}
               className={`cursor-pointer p-5 sm:p-6 rounded-2xl border transition-all duration-300 backdrop-blur-md active:scale-98 ${
@@ -196,6 +200,7 @@ export default function UGCRewardsPage() {
               </p>
             </div>
 
+            {/* TIER 03: VIDEO */}
             <div 
               onClick={() => setReviewType('VIDEO')}
               className={`cursor-pointer p-5 sm:p-6 rounded-2xl border transition-all duration-300 backdrop-blur-md relative overflow-hidden active:scale-98 ${
@@ -226,7 +231,7 @@ export default function UGCRewardsPage() {
             >
               <div className="flex justify-between items-center border-b border-[#2D323E] pb-3 sm:pb-4">
                 <h3 className="text-xs sm:text-sm font-bold uppercase text-[#D4AF37] tracking-widest">
-                  TRANSMISSION FORM // TYPE: {reviewType} ({reviewType === 'TEXT' ? '5%' : reviewType === 'PHOTO' ? '10%' : '20%'} CLAIM)
+                  TRANSMISSION FORM // {reviewType} ({targetDiscountPercentage}% CLAIM)
                 </h3>
                 <span className="text-[9px] sm:text-[10px] text-[#E8E2D6]/40 uppercase tracking-widest">PAYLOAD CMS STORAGE</span>
               </div>
@@ -263,8 +268,9 @@ export default function UGCRewardsPage() {
                 </div>
               </div>
 
+              {/* REVIEW CONTENT TEXTAREA */}
               <div className="space-y-1.5 sm:space-y-2">
-                <label className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E8E2D6]/80 font-bold">REVIEW CONTENT</label>
+                <label className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E8E2D6]/80 font-bold">WRITTEN REVIEW FEEDBACK</label>
                 <textarea 
                   required
                   rows={4}
@@ -275,30 +281,29 @@ export default function UGCRewardsPage() {
                 />
               </div>
 
-              {reviewType !== 'TEXT' && (
-                <div className="space-y-1.5 sm:space-y-2">
-                  <label className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E8E2D6]/80 font-bold">
-                    UPLOAD {reviewType === 'VIDEO' ? 'VERTICAL VIDEO (.MP4 / .MOV)' : 'FIT IMAGES (.JPG / .PNG)'}
+              {/* MEDIA ATTACHMENT SECTION */}
+              <div className="space-y-1.5 sm:space-y-2">
+                <label className="text-[10px] sm:text-xs uppercase tracking-widest text-[#E8E2D6]/80 font-bold">
+                  MEDIA ATTACHMENT {reviewType === 'TEXT' ? '(OPTIONAL FOR 5% CLAIM)' : '(REQUIRED FOR THIS TIER)'}
+                </label>
+                <div className="border-2 border-dashed border-[#2D323E] hover:border-[#D4AF37]/40 rounded-xl p-6 sm:p-8 text-center bg-[#0A0B0D]/60 cursor-pointer transition-all">
+                  <input 
+                    type="file" 
+                    accept={reviewType === 'VIDEO' ? 'video/*' : reviewType === 'PHOTO' ? 'image/*' : 'image/*,video/*'}
+                    onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)}
+                    className="hidden"
+                    id="ugc-file-input"
+                  />
+                  <label htmlFor="ugc-file-input" className="cursor-pointer space-y-1.5 sm:space-y-2 block">
+                    <p className="text-xs text-[#E8E2D6] font-bold uppercase tracking-widest hover:text-[#D4AF37] transition-colors break-all">
+                      {selectedFile ? `SELECTED: ${selectedFile.name}` : `ATTACH ${reviewType === 'TEXT' ? 'MEDIA (IF ANY)' : reviewType} FILE HERE`}
+                    </p>
+                    <p className="text-[9px] sm:text-[10px] text-[#E8E2D6]/40 uppercase tracking-widest">
+                      RAW, UNEDITED AND HIGH RESOLUTION FORMATS PREFERRED
+                    </p>
                   </label>
-                  <div className="border-2 border-dashed border-[#2D323E] rounded-xl p-6 sm:p-8 text-center bg-[#0A0B0D]/60 cursor-pointer transition-all">
-                    <input 
-                      type="file" 
-                      accept={reviewType === 'VIDEO' ? 'video/*' : 'image/*'}
-                      onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)}
-                      className="hidden"
-                      id="ugc-file-input"
-                    />
-                    <label htmlFor="ugc-file-input" className="cursor-pointer space-y-1.5 sm:space-y-2 block">
-                      <p className="text-xs text-[#E8E2D6] font-bold uppercase tracking-widest hover:text-[#D4AF37] transition-colors break-all">
-                        {selectedFile ? selectedFile.name : `ATTACH ${reviewType} MEDIA FILE HERE`}
-                      </p>
-                      <p className="text-[9px] sm:text-[10px] text-[#E8E2D6]/40 uppercase tracking-widest">
-                        RAW, UNEDITED AND HIGH RESOLUTION MANDATORY
-                      </p>
-                    </label>
-                  </div>
                 </div>
-              )}
+              </div>
 
               <button 
                 type="submit"
@@ -306,7 +311,7 @@ export default function UGCRewardsPage() {
                 className="group w-full py-3.5 sm:py-4 bg-[#12141B]/95 border border-[#2D323E] text-[#E8E2D6] font-black text-[11px] sm:text-xs uppercase tracking-[0.2em] transition-colors rounded-xl shadow-[0_4px_25px_rgba(0,0,0,0.9)] cursor-pointer backdrop-blur-md active:scale-95 disabled:opacity-50"
               >
                 <span className="group-hover:text-[#D4AF37] transition-colors">
-                  {isSubmitting ? 'SAVING TO PAYLOAD DATABASE...' : 'TRANSMIT REVIEW FOR ADMIN VALIDATION'}
+                  {isSubmitting ? 'SAVING TO PAYLOAD DATABASE...' : `TRANSMIT REVIEW FOR ${targetDiscountPercentage}% DISCOUNT VALIDATION`}
                 </span>
               </button>
 
@@ -324,7 +329,7 @@ export default function UGCRewardsPage() {
               </h2>
               
               <p className="text-[11px] sm:text-xs text-[#E8E2D6]/70 uppercase tracking-widest max-w-md mx-auto leading-relaxed">
-                YOUR REVIEW HAS BEEN STORED IN PAYLOAD CMS. ONCE ADMIN APPROVES THE SUBMISSION, YOUR DEDICATED PROMO CODE ({reviewType === 'TEXT' ? '5%' : reviewType === 'PHOTO' ? '10%' : '20%'} DISCOUNT) WILL BE DISPATCHED TO YOUR ACCOUNT.
+                YOUR REVIEW HAS BEEN STORED IN PAYLOAD CMS. ONCE ADMIN APPROVES THE SUBMISSION, YOUR DEDICATED PROMO CODE ({targetDiscountPercentage}% DISCOUNT) WILL BE DISPATCHED TO YOUR ACCOUNT.
               </p>
 
               <div className="pt-2 sm:pt-4 flex justify-center">
