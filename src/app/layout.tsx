@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { usePathname } from 'next/navigation'
+import { CartProvider } from '@/context/CartContext'
 import './globals.css'
 
 export default function RootLayout({
@@ -19,11 +20,13 @@ export default function RootLayout({
     return <>{children}</>
   }
 
-  // Render standard HTML wrapper for user-facing frontend routes
+  // Render standard HTML wrapper with Global Cart Provider for user-facing routes
   return (
     <html lang="en">
       <body>
-        {children}
+        <CartProvider>
+          {children}
+        </CartProvider>
       </body>
     </html>
   )

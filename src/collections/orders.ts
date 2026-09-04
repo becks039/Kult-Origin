@@ -4,8 +4,25 @@ export const Orders: CollectionConfig = {
   slug: 'orders',
   admin: {
     useAsTitle: 'orderNumber',
+    defaultColumns: ['orderNumber', 'customerName', 'totalAmount', 'orderStatus', 'createdAt'],
+  },
+  access: {
+    // Guest customers ko order place karne ki permission dena
+    create: () => true,
+    read: ({ req: { user } }) => Boolean(user), // Direct read access only for logged-in admin
+    update: ({ req: { user } }) => Boolean(user),
+    delete: ({ req: { user } }) => Boolean(user),
   },
   hooks: {
+    beforeChange: [
+      async ({ data, operation }) => {
+        // Automatically generate unique order number on create
+        if (operation === 'create' && !data.orderNumber) {
+          data.orderNumber = `KULT-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+        }
+        return data;
+      },
+    ],
     afterChange: [
       async ({ doc, operation }) => {
         if (operation === 'create') {
@@ -29,12 +46,40 @@ export const Orders: CollectionConfig = {
       type: 'text',
       required: true,
       unique: true,
+      admin: {
+        readOnly: true,
+      },
+    },
+    // Guest Customer Information (Direct Fields)
+    {
+      name: 'customerName',
+      type: 'text',
+      required: true,
     },
     {
-      name: 'customer',
+      name: 'customerEmail',
+      type: 'text',
+      required: true,
+    },
+    {
+      name: 'customerPhone',
+      type: 'text',
+      required: true,
+    },
+    {
+      name: 'shippingAddress',
+      type: 'group',
+      fields: [
+        { name: 'street', type: 'text', required: true },
+        { name: 'city', type: 'text', required: true },
+      ],
+    },
+    // Optional Registered User Relationship
+    {
+      name: 'user',
       type: 'relationship',
       relationTo: 'users',
-      required: true,
+      required: false,
     },
     {
       name: 'items',
@@ -57,6 +102,10 @@ export const Orders: CollectionConfig = {
           type: 'number',
           required: true,
         },
+        {
+          name: 'size',
+          type: 'text',
+        },
       ],
     },
     {
@@ -73,6 +122,7 @@ export const Orders: CollectionConfig = {
       name: 'shippingFee',
       type: 'number',
       required: true,
+      defaultValue: 250,
       admin: {
         description: 'Customer pays shipping to maintain premium perception',
       },
@@ -104,6 +154,7 @@ export const Orders: CollectionConfig = {
         { label: 'Processing', value: 'PROCESSING' },
         { label: 'Shipped', value: 'SHIPPED' },
         { label: 'Delivered', value: 'DELIVERED' },
+        { label: 'Cancelled', value: 'CANCELLED' },
       ],
       defaultValue: 'PROCESSING',
     },

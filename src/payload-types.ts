@@ -70,12 +70,12 @@ export interface Config {
     users: User;
     'access-requests': AccessRequest;
     waitlist: Waitlist;
+    orders: Order;
     media: Media;
     categories: Category;
     products: Product;
     'founder-profiles': FounderProfile;
     'founder-keys': FounderKey;
-    orders: Order;
     reviews: Review;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -87,12 +87,12 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     'access-requests': AccessRequestsSelect<false> | AccessRequestsSelect<true>;
     waitlist: WaitlistSelect<false> | WaitlistSelect<true>;
+    orders: OrdersSelect<false> | OrdersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
     'founder-profiles': FounderProfilesSelect<false> | FounderProfilesSelect<true>;
     'founder-keys': FounderKeysSelect<false> | FounderKeysSelect<true>;
-    orders: OrdersSelect<false> | OrdersSelect<true>;
     reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -249,35 +249,36 @@ export interface Waitlist {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media".
+ * via the `definition` "orders".
  */
-export interface Media {
+export interface Order {
   id: number;
-  alt: string;
-  caption?: string | null;
-  updatedAt: string;
-  createdAt: string;
-  url?: string | null;
-  thumbnailURL?: string | null;
-  filename?: string | null;
-  mimeType?: string | null;
-  filesize?: number | null;
-  width?: number | null;
-  height?: number | null;
-  focalX?: number | null;
-  focalY?: number | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "categories".
- */
-export interface Category {
-  id: number;
-  title: string;
-  slug: string;
-  description?: string | null;
-  heroImage?: (number | null) | Media;
-  active?: boolean | null;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  shippingAddress: {
+    street: string;
+    city: string;
+  };
+  user?: (number | null) | User;
+  items: {
+    product: number | Product;
+    quantity: number;
+    unitPrice: number;
+    size?: string | null;
+    id?: string | null;
+  }[];
+  subtotal: number;
+  discount?: number | null;
+  /**
+   * Customer pays shipping to maintain premium perception
+   */
+  shippingFee: number;
+  totalAmount: number;
+  isFounderOrder?: boolean | null;
+  paymentStatus?: ('PENDING' | 'PAID' | 'FAILED') | null;
+  orderStatus?: ('PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -323,6 +324,40 @@ export interface Product {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories".
+ */
+export interface Category {
+  id: number;
+  title: string;
+  slug: string;
+  description?: string | null;
+  heroImage?: (number | null) | Media;
+  active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+  id: number;
+  alt: string;
+  caption?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "founder-profiles".
  */
 export interface FounderProfile {
@@ -334,30 +369,6 @@ export interface FounderProfile {
   lifetimeDiscount?: number | null;
   annualSpend?: number | null;
   annualSpendCap?: number | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "orders".
- */
-export interface Order {
-  id: number;
-  orderNumber: string;
-  customer: number | User;
-  items: {
-    product: number | Product;
-    quantity: number;
-    unitPrice: number;
-    id?: string | null;
-  }[];
-  subtotal: number;
-  discount?: number | null;
-  shippingFee: number;
-  totalAmount: number;
-  isFounderOrder?: boolean | null;
-  paymentStatus?: ('PENDING' | 'PAID' | 'FAILED') | null;
-  orderStatus?: ('PROCESSING' | 'SHIPPED' | 'DELIVERED') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -418,6 +429,10 @@ export interface PayloadLockedDocument {
         value: number | Waitlist;
       } | null)
     | ({
+        relationTo: 'orders';
+        value: number | Order;
+      } | null)
+    | ({
         relationTo: 'media';
         value: number | Media;
       } | null)
@@ -436,10 +451,6 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'founder-keys';
         value: number | FounderKey;
-      } | null)
-    | ({
-        relationTo: 'orders';
-        value: number | Order;
       } | null)
     | ({
         relationTo: 'reviews';
@@ -548,6 +559,41 @@ export interface WaitlistSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "orders_select".
+ */
+export interface OrdersSelect<T extends boolean = true> {
+  orderNumber?: T;
+  customerName?: T;
+  customerEmail?: T;
+  customerPhone?: T;
+  shippingAddress?:
+    | T
+    | {
+        street?: T;
+        city?: T;
+      };
+  user?: T;
+  items?:
+    | T
+    | {
+        product?: T;
+        quantity?: T;
+        unitPrice?: T;
+        size?: T;
+        id?: T;
+      };
+  subtotal?: T;
+  discount?: T;
+  shippingFee?: T;
+  totalAmount?: T;
+  isFounderOrder?: T;
+  paymentStatus?: T;
+  orderStatus?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
@@ -629,31 +675,6 @@ export interface FounderKeysSelect<T extends boolean = true> {
   status?: T;
   assignedTo?: T;
   batch?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "orders_select".
- */
-export interface OrdersSelect<T extends boolean = true> {
-  orderNumber?: T;
-  customer?: T;
-  items?:
-    | T
-    | {
-        product?: T;
-        quantity?: T;
-        unitPrice?: T;
-        id?: T;
-      };
-  subtotal?: T;
-  discount?: T;
-  shippingFee?: T;
-  totalAmount?: T;
-  isFounderOrder?: T;
-  paymentStatus?: T;
-  orderStatus?: T;
   updatedAt?: T;
   createdAt?: T;
 }

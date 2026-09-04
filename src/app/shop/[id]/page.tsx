@@ -11,7 +11,11 @@ import {
   Minus,
   ShoppingBag
 } from 'lucide-react';
-
+ import {
+  getCartData,
+  saveCartData,
+  getActiveCartCount,
+} from '@/lib/cart';
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -133,41 +137,65 @@ export default function SingleProductPage({ params }: PageProps) {
   }, [id]);
 
   const updateCartCount = () => {
-    const existingCart = JSON.parse(localStorage.getItem('kult_cart') || '[]');
-    const totalItems = existingCart.reduce((sum: number, item: any) => sum + item.quantity, 0);
-    setCartCount(totalItems);
-  };
+  setCartCount(getActiveCartCount());
+};
 
   const handleAddToCart = () => {
-    if (!product || product.status === 'SOLD_OUT') return;
-    const existingCart = JSON.parse(localStorage.getItem('kult_cart') || '[]');
-    const numericPrice = parseInt(product.founderPrice.replace(/[^0-9]/g, ''), 10) || 0;
-    const existingIndex = existingCart.findIndex((item: any) => item.id === product.id && item.size === selectedSize);
+  if (!product || product.status === 'SOLD_OUT') return;
 
-    if (existingIndex > -1) {
-      existingCart[existingIndex].quantity += quantity;
-    } else {
-      existingCart.push({
-        id: product.id,
-        title: product.title,
-        price: numericPrice,
-        quantity: quantity,
-        size: selectedSize,
-        gsm: product.gsm,
-        fabric: product.fabric,
-        image: selectedImage,
-      });
-    }
+  const { items: existingCart } = getCartData();
 
-    localStorage.setItem('kult_cart', JSON.stringify(existingCart));
-    updateCartCount();
+  const numericPrice =
+    parseInt(
+      String(product.founderPrice).replace(/[^0-9]/g, ''),
+      10
+    ) || 0;
 
-    setAddedId(product.id);
-    setToastNotification({ show: true, title: product.title });
+  const existingIndex = existingCart.findIndex(
+    (item: any) =>
+      item.id === product.id &&
+      item.size === selectedSize
+  );
 
-    setTimeout(() => setAddedId(null), 2500);
-    setTimeout(() => setToastNotification(null), 3500);
-  };
+  if (existingIndex > -1) {
+    existingCart[existingIndex] = {
+      ...existingCart[existingIndex],
+      quantity:
+        (existingCart[existingIndex].quantity || 1) +
+        quantity,
+    };
+  } else {
+    existingCart.push({
+      id: String(product.id),
+      title: product.title,
+      price: numericPrice,
+      quantity,
+      size: selectedSize,
+      gsm: product.gsm,
+      fabric: product.fabric,
+      category: product.category,
+      image: selectedImage,
+    });
+  }
+
+  saveCartData(existingCart);
+
+  updateCartCount();
+
+  window.dispatchEvent(new Event('cart-updated'));
+
+  setAddedId(product.id);
+  setToastNotification({
+    show: true,
+    title: product.title,
+  });
+
+  setTimeout(() => setAddedId(null), 2500);
+  setTimeout(
+    () => setToastNotification(null),
+    3500
+  );
+};
 
   if (loading) {
     return (

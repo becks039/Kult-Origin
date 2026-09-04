@@ -1,148 +1,79 @@
+import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const filename = fileURLToPath(import.meta.url)
+const dirname = path.dirname(filename)
+
+// Load .env.local explicitly
+dotenv.config({ path: path.resolve(dirname, '../.env.local') })
+
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
-import path from 'path'
 import { buildConfig } from 'payload'
 import sharp from 'sharp'
-import { fileURLToPath } from 'url'
 
 import { Users } from '@/collections/users'
 import { AccessRequests } from '@/collections/AccessRequests'
 import { Waitlist } from '@/collections/waitlist'
-
-const filename = fileURLToPath(import.meta.url)
-const dirname = path.dirname(filename)
+import { Orders } from '@/collections/orders'
 
 export default buildConfig({
   admin: {
     user: Users.slug,
   },
 
-  sharp,
-
   collections: [
     Users,
     AccessRequests,
     Waitlist,
+    Orders,
 
-    // ============================================================
     // MEDIA
-    // ============================================================
     {
       slug: 'media',
       admin: {
         useAsTitle: 'alt',
-        hidden: false, // Ensure visibility on Dashboard
+        hidden: false,
         group: 'Content & Assets',
       },
-      access: {
-        read: () => true,
-      },
+      access: { read: () => true },
       upload: {
         staticDir: path.resolve(dirname, '../public/media'),
         mimeTypes: ['image/*', 'video/*'],
       },
       fields: [
-        {
-          name: 'alt',
-          type: 'text',
-          required: true,
-        },
-        {
-          name: 'caption',
-          type: 'text',
-        },
+        { name: 'alt', type: 'text', required: true },
+        { name: 'caption', type: 'text' },
       ],
     },
 
-    // ============================================================
     // CATEGORIES
-    // ============================================================
     {
       slug: 'categories',
-      admin: {
-        useAsTitle: 'title',
-        hidden: false,
-        group: 'E-Commerce',
-      },
-      access: {
-        read: () => true,
-      },
+      admin: { useAsTitle: 'title', hidden: false, group: 'E-Commerce' },
+      access: { read: () => true },
       fields: [
-        {
-          name: 'title',
-          type: 'text',
-          required: true,
-          unique: true,
-        },
-        {
-          name: 'slug',
-          type: 'text',
-          required: true,
-          unique: true,
-          index: true,
-        },
-        {
-          name: 'description',
-          type: 'textarea',
-        },
-        {
-          name: 'heroImage',
-          type: 'upload',
-          relationTo: 'media',
-        },
-        {
-          name: 'active',
-          type: 'checkbox',
-          defaultValue: true,
-        },
+        { name: 'title', type: 'text', required: true, unique: true },
+        { name: 'slug', type: 'text', required: true, unique: true, index: true },
+        { name: 'description', type: 'textarea' },
+        { name: 'heroImage', type: 'upload', relationTo: 'media' },
+        { name: 'active', type: 'checkbox', defaultValue: true },
       ],
     },
 
-    // ============================================================
     // PRODUCTS
-    // ============================================================
     {
       slug: 'products',
-      admin: {
-        useAsTitle: 'title',
-        hidden: false,
-        group: 'E-Commerce',
-      },
-      access: {
-        read: () => true,
-      },
+      admin: { useAsTitle: 'title', hidden: false, group: 'E-Commerce' },
+      access: { read: () => true },
       fields: [
-        {
-          name: 'title',
-          type: 'text',
-          required: true,
-        },
-        {
-          name: 'slug',
-          type: 'text',
-          required: true,
-          unique: true,
-          index: true,
-        },
-        {
-          name: 'description',
-          type: 'richText',
-          required: true,
-        },
-        {
-          name: 'msrp',
-          type: 'number',
-          required: true,
-        },
-        {
-          name: 'founderPrice',
-          type: 'number',
-          required: true,
-        },
-        {
-          name: 'gsm',
-          type: 'number',
-        },
+        { name: 'title', type: 'text', required: true },
+        { name: 'slug', type: 'text', required: true, unique: true, index: true },
+        { name: 'description', type: 'richText', required: true },
+        { name: 'msrp', type: 'number', required: true },
+        { name: 'founderPrice', type: 'number', required: true },
+        { name: 'gsm', type: 'number' },
         {
           name: 'fabric',
           type: 'text',
@@ -204,9 +135,7 @@ export default buildConfig({
       ],
     },
 
-    // ============================================================
     // FOUNDER PROFILES
-    // ============================================================
     {
       slug: 'founder-profiles',
       admin: {
@@ -262,9 +191,7 @@ export default buildConfig({
       ],
     },
 
-    // ============================================================
     // FOUNDER KEYS
-    // ============================================================
     {
       slug: 'founder-keys',
       admin: {
@@ -305,109 +232,7 @@ export default buildConfig({
       ],
     },
 
-    // ============================================================
-    // ORDERS
-    // ============================================================
-    {
-      slug: 'orders',
-      admin: {
-        useAsTitle: 'orderNumber',
-        hidden: false,
-        group: 'E-Commerce',
-      },
-      fields: [
-        {
-          name: 'orderNumber',
-          type: 'text',
-          required: true,
-          unique: true,
-        },
-        {
-          name: 'customer',
-          type: 'relationship',
-          relationTo: 'users',
-          required: true,
-        },
-        {
-          name: 'items',
-          type: 'array',
-          required: true,
-          fields: [
-            {
-              name: 'product',
-              type: 'relationship',
-              relationTo: 'products',
-              required: true,
-            },
-            {
-              name: 'quantity',
-              type: 'number',
-              required: true,
-              min: 1,
-            },
-            {
-              name: 'unitPrice',
-              type: 'number',
-              required: true,
-              min: 0,
-            },
-          ],
-        },
-        {
-          name: 'subtotal',
-          type: 'number',
-          required: true,
-          min: 0,
-        },
-        {
-          name: 'discount',
-          type: 'number',
-          defaultValue: 0,
-          min: 0,
-        },
-        {
-          name: 'shippingFee',
-          type: 'number',
-          required: true,
-          min: 0,
-        },
-        {
-          name: 'totalAmount',
-          type: 'number',
-          required: true,
-          min: 0,
-        },
-        {
-          name: 'isFounderOrder',
-          type: 'checkbox',
-          defaultValue: false,
-        },
-        {
-          name: 'paymentStatus',
-          type: 'select',
-          defaultValue: 'PENDING',
-          options: [
-            { label: 'Pending', value: 'PENDING' },
-            { label: 'Paid', value: 'PAID' },
-            { label: 'Failed', value: 'FAILED' },
-          ],
-        },
-        {
-          name: 'orderStatus',
-          type: 'select',
-          defaultValue: 'PROCESSING',
-          options: [
-            { label: 'Processing', value: 'PROCESSING' },
-            { label: 'Shipped', value: 'SHIPPED' },
-            { label: 'Delivered', value: 'DELIVERED' },
-          ],
-        },
-      ],
-    },
-
-    // ============================================================
     // REVIEWS
-    // ============================================================
     {
       slug: 'reviews',
       admin: {
@@ -433,9 +258,18 @@ export default buildConfig({
           type: 'select',
           required: true,
           options: [
-            { label: 'Text Review (5% Reward)', value: 'TEXT' },
-            { label: 'Photo Review (10% Reward)', value: 'PHOTO' },
-            { label: 'Video Review (20% Reward)', value: 'VIDEO' },
+            {
+              label: 'Text Review (5% Reward)',
+              value: 'TEXT',
+            },
+            {
+              label: 'Photo Review (10% Reward)',
+              value: 'PHOTO',
+            },
+            {
+              label: 'Video Review (20% Reward)',
+              value: 'VIDEO',
+            },
           ],
         },
         {
@@ -459,9 +293,18 @@ export default buildConfig({
           type: 'select',
           defaultValue: 'PENDING',
           options: [
-            { label: 'Pending', value: 'PENDING' },
-            { label: 'Approved', value: 'APPROVED' },
-            { label: 'Rejected', value: 'REJECTED' },
+            {
+              label: 'Pending',
+              value: 'PENDING',
+            },
+            {
+              label: 'Approved',
+              value: 'APPROVED',
+            },
+            {
+              label: 'Rejected',
+              value: 'REJECTED',
+            },
           ],
         },
       ],
@@ -471,12 +314,8 @@ export default buildConfig({
   globals: [
     {
       slug: 'batch-001-settings',
-      admin: {
-        group: 'Settings',
-      },
-      access: {
-        read: () => true,
-      },
+      admin: { group: 'Settings' },
+      access: { read: () => true },
       fields: [
         {
           name: 'founderCap',
@@ -497,9 +336,18 @@ export default buildConfig({
           type: 'select',
           defaultValue: 'FOUNDER_ACCESS',
           options: [
-            { label: 'Locked / Waitlist', value: 'LOCKED' },
-            { label: 'Founder Access Only', value: 'FOUNDER_ACCESS' },
-            { label: 'Public Release', value: 'PUBLIC_RELEASE' },
+            {
+              label: 'Locked / Waitlist',
+              value: 'LOCKED',
+            },
+            {
+              label: 'Founder Access Only',
+              value: 'FOUNDER_ACCESS',
+            },
+            {
+              label: 'Public Release',
+              value: 'PUBLIC_RELEASE',
+            },
           ],
         },
         {
@@ -515,14 +363,23 @@ export default buildConfig({
   ],
 
   editor: lexicalEditor({}),
-  secret: process.env.PAYLOAD_SECRET || '',
+
+  secret:
+    process.env.PAYLOAD_SECRET ||
+    'a_very_secret_key_for_kult_origin_2026',
+
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
+
   db: postgresAdapter({
     pool: {
-      connectionString: process.env.DATABASE_URI || '',
+      host: 'localhost',
+      port: 1234,
+      user: 'postgres',
+      password: '1234',
+      database: 'kult-origin',
     },
-    push: true,
+    push: process.env.NODE_ENV !== 'production',
   }),
 })
