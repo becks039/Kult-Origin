@@ -343,20 +343,7 @@ function CartContent() {
 
               </div>
 
-              <div className="flex items-center">
-
-                <Link
-                  href="/shop"
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl border border-[#2D323E] bg-[#12141B]/90 hover:border-[#D4AF37]/60 hover:text-[#D4AF37] text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all group"
-                >
-
-                  <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
-
-                  CONTINUE SHOPPING
-
-                </Link>
-
-              </div>
+             
 
             </div>
 
