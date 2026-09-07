@@ -9,6 +9,7 @@ export const Waitlist: CollectionConfig = {
     defaultColumns: [
       'fullName',
       'email',
+      'birthDate',
       'accessKey',
       'status',
       'founderKey',
@@ -33,6 +34,22 @@ export const Waitlist: CollectionConfig = {
       type: 'email',
       required: true,
       unique: true,
+    },
+    {
+      name: 'phoneNumber',
+      type: 'text',
+      label: 'Phone Number',
+    },
+    {
+      name: 'birthDate',
+      type: 'date',
+      label: 'Date of Birth',
+      admin: {
+        date: {
+          pickerAppearance: 'dayOnly',
+          displayFormat: 'yyyy-MM-dd',
+        },
+      },
     },
     {
       name: 'accessKey',
@@ -98,7 +115,61 @@ export const Waitlist: CollectionConfig = {
           return
         }
 
-        // 1. Check or Create User
+        // -------------------------------------------------------------
+        // 0. FETCH DATA FROM ACCESS-REQUESTS COLLECTION (DOB & PHONE)
+        // -------------------------------------------------------------
+        let userDob: string | null = doc.birthDate || null
+        let userPhone: string | null = doc.phoneNumber || null
+
+        try {
+          const accessRequestDocs = await req.payload.find({
+            collection: 'access-requests',
+            where: { email: { equals: email } },
+            limit: 1,
+            overrideAccess: true,
+          })
+
+          if (accessRequestDocs.docs.length > 0) {
+            const rawReqDoc = accessRequestDocs.docs[0] as Record<string, any>
+            const rawDob = rawReqDoc.birthDate || rawReqDoc.dob
+            const rawPhone = rawReqDoc.phoneNumber || rawReqDoc.phone
+
+            if (!userDob && rawDob) {
+              const parsedDate = new Date(rawDob)
+              if (!isNaN(parsedDate.getTime())) {
+                userDob = parsedDate.toISOString()
+              }
+            }
+
+            if (!userPhone && rawPhone) {
+              userPhone = rawPhone
+            }
+          }
+        } catch (err) {
+          req.payload.logger.error(
+            `Error fetching details from access-requests for ${email}: ${err}`,
+          )
+        }
+
+        // Format validation for birthDate
+        if (userDob) {
+          const parsedDate = new Date(userDob)
+          userDob = !isNaN(parsedDate.getTime()) ? parsedDate.toISOString() : null
+        }
+
+        // -------------------------------------------------------------
+        // 1. CALCULATE NEXT FOUNDER NUMBER (1 to 50)
+        // -------------------------------------------------------------
+        const existingProfiles = await req.payload.find({
+          collection: 'founder-profiles',
+          limit: 100,
+          overrideAccess: true,
+        })
+        const calculatedFounderNumber = existingProfiles.totalDocs + 1
+
+        // -------------------------------------------------------------
+        // 2. CHECK OR CREATE / UPDATE USER WITH ALL FIELDS
+        // -------------------------------------------------------------
         const existingUsers = await req.payload.find({
           collection: 'users',
           where: { email: { equals: email } },
@@ -108,32 +179,54 @@ export const Waitlist: CollectionConfig = {
 
         let userRecord: Record<string, any>
 
+        const userPayloadData: Record<string, any> = {
+          email,
+          name: doc.fullName,
+          role: 'customer',
+          isFounder: true,
+          founderNumber: calculatedFounderNumber,
+        }
+
+        if (userDob) {
+          userPayloadData.dob = userDob
+          userPayloadData.birthDate = userDob
+        }
+
+        if (userPhone) {
+          userPayloadData.phoneNumber = userPhone
+          userPayloadData.phone = userPhone
+        }
+
         if (existingUsers.totalDocs > 0) {
           userRecord = existingUsers.docs[0]
+
+          userRecord = await req.payload.update({
+            collection: 'users',
+            id: userRecord.id,
+            data: userPayloadData,
+            req,
+            overrideAccess: true,
+          })
         } else {
           const temporaryPassword = crypto.randomBytes(24).toString('hex')
           userRecord = await req.payload.create({
             collection: 'users',
             data: {
-              email,
-              name: doc.fullName,
+              ...userPayloadData,
               password: temporaryPassword,
-              role: 'customer',
-              isFounder: true,
             },
             req,
             overrideAccess: true,
           })
         }
 
-        // 2. Generate unique Founder Key string
+        // -------------------------------------------------------------
+        // 3. GENERATE KEY STRING & CREATE FOUNDER PROFILE
+        // -------------------------------------------------------------
         const generatedKeyString =
           doc.accessKey ||
           `ORIGIN-BATCH001-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
 
-        // -------------------------------------------------------------
-        // 2.1 CREATE FOUNDER PROFILE ENTRY
-        // -------------------------------------------------------------
         const existingProfile = await req.payload.find({
           collection: 'founder-profiles',
           where: { 'user.email': { equals: email } },
@@ -142,21 +235,12 @@ export const Waitlist: CollectionConfig = {
         })
 
         if (existingProfile.totalDocs === 0) {
-          // Check slot count for profile number allocation
-          const existingProfiles = await req.payload.find({
-            collection: 'founder-profiles',
-            limit: 50,
-            overrideAccess: true,
-          })
-
-          const nextFounderNumber = existingProfiles.totalDocs + 1
-
           await req.payload.create({
             collection: 'founder-profiles',
             data: {
               user: userRecord.id,
-              founderNumber: nextFounderNumber,
-              physicalKeySerial: `${String(nextFounderNumber).padStart(3, '0')}/050`,
+              founderNumber: calculatedFounderNumber,
+              physicalKeySerial: `${String(calculatedFounderNumber).padStart(3, '0')}/050`,
               accessKey: generatedKeyString,
               joinedAt: new Date().toISOString(),
               lifetimeDiscount: 20,
@@ -168,7 +252,9 @@ export const Waitlist: CollectionConfig = {
           })
         }
 
-        // 3. Create document in 'founder-keys'
+        // -------------------------------------------------------------
+        // 4. CREATE FOUNDER KEY ENTRY
+        // -------------------------------------------------------------
         await req.payload.create({
           collection: 'founder-keys',
           data: {
@@ -181,7 +267,9 @@ export const Waitlist: CollectionConfig = {
           overrideAccess: true,
         })
 
-        // 4. PURGE / REMOVE FROM WAITLIST
+        // -------------------------------------------------------------
+        // 5. PURGE / REMOVE FROM WAITLIST
+        // -------------------------------------------------------------
         await req.payload.delete({
           collection: 'waitlist',
           id: doc.id,
@@ -190,7 +278,7 @@ export const Waitlist: CollectionConfig = {
         })
 
         req.payload.logger.info(
-          `Successfully created Founder Key and Founder Profile for ${email}. Purged from Waitlist.`,
+          `Successfully created Founder Key, Profile, and updated User fields for ${email}. Purged from Waitlist.`,
         )
       },
     ],

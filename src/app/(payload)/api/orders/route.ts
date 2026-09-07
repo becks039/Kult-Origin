@@ -15,56 +15,9 @@ export async function POST(req: Request) {
       config,
     });
 
-    // ==========================================
-    // VALIDATE + NORMALIZE PRODUCT RELATIONSHIPS
-    // ==========================================
-
-    const normalizedItems = await Promise.all(
-      (body.items || []).map(async (item: any) => {
-        const productId = Number(item.product);
-
-        if (!Number.isInteger(productId)) {
-          throw new Error(
-            `Invalid product ID: ${item.product}`,
-          );
-        }
-
-        // Confirm product actually exists
-        const product = await payload.findByID({
-          collection: 'products',
-          id: productId,
-        });
-
-        if (!product) {
-          throw new Error(
-            `Product not found: ${productId}`,
-          );
-        }
-
-        return {
-          ...item,
-          product: productId,
-        };
-      }),
-    );
-
-    const orderPayload = {
-      ...body,
-      items: normalizedItems,
-    };
-
-    console.log('=================================');
-    console.log('NORMALIZED ORDER PAYLOAD:');
-    console.log(JSON.stringify(orderPayload, null, 2));
-    console.log('=================================');
-
-    // ==========================================
-    // CREATE ORDER
-    // ==========================================
-
     const order = await payload.create({
       collection: 'orders',
-      data: orderPayload,
+      data: body,
     });
 
     console.log('=================================');
@@ -80,8 +33,9 @@ export async function POST(req: Request) {
       },
       {
         status: 201,
-      },
+      }
     );
+
   } catch (error: any) {
     console.error('=================================');
     console.error('PAYLOAD ORDER CREATION ERROR:');
@@ -98,7 +52,7 @@ export async function POST(req: Request) {
       },
       {
         status: 500,
-      },
+      }
     );
   }
 }

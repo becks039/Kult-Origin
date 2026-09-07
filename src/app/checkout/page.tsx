@@ -370,6 +370,7 @@ const handleOrderSubmit = async (
           `Order creation failed: ${res.status}`
       );
     }
+
     // ==========================================
     // ORDER SUCCESS
     // ==========================================
@@ -507,24 +508,17 @@ return ( <div className="relative min-h-screen bg-[#0A0B0D] text-[#E8E2D6] font-
       </div>
     </section>
 
-    {/* ==========================================
-        MAIN FORM
-    ========================================== */}
-
+    {/* MAIN FORM */}
     <form
       onSubmit={handleOrderSubmit}
       className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8"
     >
 
-      {/* ==========================================
-          LEFT COLUMN
-      ========================================== */}
+      {/* LEFT COLUMN */}
 
       <div className="lg:col-span-7 space-y-6 sm:space-y-8">
 
-        {/* ==========================================
-            DESTINATION PROTOCOL
-        ========================================== */}
+        {/*DESTINATION PROTOCOL */}
 
         <div className="bg-[#12141B]/90 backdrop-blur-md border border-[#2D323E] p-5 sm:p-8 rounded-2xl space-y-5 shadow-[0_15px_35px_rgba(0,0,0,0.8)]">
 
@@ -670,9 +664,7 @@ return ( <div className="relative min-h-screen bg-[#0A0B0D] text-[#E8E2D6] font-
 
         </div>
 
-        {/* ==========================================
-            PAYMENT METHOD
-        ========================================== */}
+        {/* PAYMENT METHOD */}
 
         <div className="bg-[#12141B]/90 backdrop-blur-md border border-[#2D323E] p-5 sm:p-8 rounded-2xl space-y-5 shadow-[0_15px_35px_rgba(0,0,0,0.8)]">
 
@@ -812,16 +804,10 @@ return ( <div className="relative min-h-screen bg-[#0A0B0D] text-[#E8E2D6] font-
 
           </h2>
 
-          {/* ==========================================
-              CART ITEMS
-          ========================================== */}
-
+          {/*CART ITEMS */}
           <div className="space-y-3 max-h-72 overflow-y-auto pr-1 border-b border-[#2D323E] pb-4">
-
             {cartItems.length === 0 ? (
-
               <div className="text-center py-8 space-y-3 border border-dashed border-[#2D323E] rounded-xl p-4">
-
                 <ShoppingBag className="w-8 h-8 text-[#D4AF37]/40 mx-auto" />
 
                 <p className="text-xs text-[#E8E2D6]/50 uppercase tracking-widest">
@@ -1162,10 +1148,7 @@ return ( <div className="relative min-h-screen bg-[#0A0B0D] text-[#E8E2D6] font-
 
 );
 }
-// ==========================================
 // 3. MAIN EXPORT
-// ==========================================
-
 export default function CheckoutPage() {
 return (
 <Suspense

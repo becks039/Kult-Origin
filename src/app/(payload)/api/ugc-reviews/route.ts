@@ -33,6 +33,25 @@ export async function POST(req: Request) {
     const discountPercentage = type === 'VIDEO' ? '20' : type === 'PHOTO' ? '10' : '5';
     const discountCode = `KULT-UGC-${discountPercentage}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
+    // n8n Webhook Trigger (Fire and forget, response delay nahi karega)
+    const n8nWebhookUrl = process.env.N8N_UGC_WEBHOOK_URL || 'https://your-n8n-instance.com/webhook/ugc-review';
+    
+    fetch(n8nWebhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reviewId: newReview.id,
+        customerId,
+        productId,
+        type,
+        content,
+        discountCode,
+        discountPercentage,
+        mediaIds: mediaIds || [],
+        createdAt: new Date().toISOString(),
+      }),
+    }).catch((err) => console.error('n8n Webhook Error:', err));
+
     return NextResponse.json({
       success: true,
       review: newReview,

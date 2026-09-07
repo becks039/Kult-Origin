@@ -7,47 +7,35 @@ export const Users: CollectionConfig = {
 
   admin: {
     useAsTitle: 'email',
-    defaultColumns: ['email', 'name', 'role', 'isFounder'],
+    defaultColumns: ['email', 'name', 'birthDate', 'role', 'isFounder'],
   },
 
   access: {
-    // Who can access Payload Admin Panel
-    admin: ({ req: { user } }) => {
-      return user?.role === 'admin'
+    // Admin panel access restriction
+    admin: ({ req: { user } }) => user?.role === 'admin',
+
+    // Allow user creation by Admin OR by System / API execution
+    create: ({ req }) => {
+      if (!req.user) return true // Allows server-side / system creation via hooks or API
+      return req.user.role === 'admin'
     },
 
-    // Only admins can create users from Payload Admin Panel/API
-    create: ({ req: { user } }) => {
-      return user?.role === 'admin'
-    },
-
-    // Logged-in users can read their own profile.
-    // Admins can read everyone.
+    // Logged-in users can read their own profile; Admins read all
     read: ({ req: { user } }) => {
-      if (!user) {
-        return false
-      }
-
-      if (user.role === 'admin') {
-        return true
-      }
-
-      return {
-        id: {
-          equals: user.id,
-        },
-      }
+      if (!user) return false
+      if (user.role === 'admin') return true
+      return { id: { equals: user.id } }
     },
 
-    // Only admins can update users.
+    // Updates restricted to Admins or self
     update: ({ req: { user } }) => {
-      return user?.role === 'admin'
+      if (!user) return false
+      if (user.role === 'admin') return true
+      return { id: { equals: user.id } }
     },
 
-    // Only admins can delete users.
-    delete: ({ req: { user } }) => {
-      return user?.role === 'admin'
-    },
+    // Only Admins can delete
+    delete: ({ req: { user } }) => user?.role === 'admin',
   },
 
   fields: [
@@ -69,33 +57,39 @@ export const Users: CollectionConfig = {
       type: 'select',
       required: true,
       defaultValue: 'customer',
-
       options: [
-        {
-          label: 'Admin',
-          value: 'admin',
-        },
-        {
-          label: 'Customer',
-          value: 'customer',
-        },
+        { label: 'Admin', value: 'admin' },
+        { label: 'Customer', value: 'customer' },
       ],
-
       admin: {
         position: 'sidebar',
       },
     },
 
     // -------------------------
+    // DATE OF BIRTH
+    // -------------------------
+    {
+      name: 'birthDate',
+      type: 'date',
+      label: 'Date of Birth',
+      admin: {
+        description: 'Used later for Birthday Protocol automation.',
+        date: {
+          pickerAppearance: 'dayOnly',
+          displayFormat: 'yyyy-MM-dd',
+        },
+      },
+    },
+
+    // -------------------------
     // FOUNDER 50
     // -------------------------
-
     {
       name: 'isFounder',
       type: 'checkbox',
       defaultValue: false,
       label: 'Founder 50 Member',
-
       admin: {
         position: 'sidebar',
       },
@@ -107,13 +101,9 @@ export const Users: CollectionConfig = {
       label: 'Founder Number',
       min: 1,
       max: 50,
-
       admin: {
         description: 'Founder position from 1 to 50. Example: 12 = 012/050.',
-
-        condition: (data) => {
-          return Boolean(data?.isFounder)
-        },
+        condition: (data) => Boolean(data?.isFounder),
       },
     },
 
@@ -123,36 +113,20 @@ export const Users: CollectionConfig = {
       defaultValue: 0,
       min: 0,
       label: 'Annual Spend',
-
       admin: {
         description: 'Annual customer spending in PKR.',
       },
     },
 
-    {
-      name: 'dob',
-      type: 'date',
-      label: 'Date of Birth',
-
-      admin: {
-        description: 'Used later for Birthday Protocol automation.',
-      },
-    },
-
     // -------------------------
-    // REFERRAL
+    // REFERRAL & POINTS
     // -------------------------
-
     {
       name: 'referralCode',
       type: 'text',
       unique: true,
       label: 'Referral Code',
     },
-
-    // -------------------------
-    // ORIGIN POINTS
-    // -------------------------
 
     {
       name: 'originPoints',

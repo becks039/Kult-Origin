@@ -14,6 +14,7 @@ import {
   User,
   Send,
   Check,
+  Calendar,
 } from 'lucide-react'
 import { getCartData } from '@/lib/cart'
 
@@ -40,6 +41,7 @@ export default function Batch001Page() {
   // Access Request State
   const [registerName, setRegisterName] = useState('')
   const [registerEmail, setRegisterEmail] = useState('')
+  const [registerBirthDate, setRegisterBirthDate] = useState('') // <--- BIRTHDATE STATE
   const [isRequesting, setIsRequesting] = useState(false)
   const [requestSuccess, setRequestSuccess] = useState(false)
   const [requestError, setRequestError] = useState<string | null>(null)
@@ -90,7 +92,7 @@ export default function Batch001Page() {
         return
       }
 
-      // 1. Storage Keys Set Karein
+      // 1. Storage Keys Set
       localStorage.setItem('kult_access_key', inputCleanKey)
       localStorage.setItem('kult_founder_key', inputCleanKey)
       localStorage.setItem(STORAGE_KEY_ACCESS, 'true')
@@ -136,6 +138,7 @@ export default function Batch001Page() {
         body: JSON.stringify({
           name: registerName.trim(),
           email: registerEmail.trim(),
+          birthDate: registerBirthDate ? registerBirthDate.trim() : null, // <--- PAYLOAD FORWARDED
         }),
       })
 
@@ -251,6 +254,7 @@ export default function Batch001Page() {
                     type="password"
                     id="vault-key"
                     name="vault-key"
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => {
                       setPassword(e.target.value)
@@ -306,6 +310,7 @@ export default function Batch001Page() {
                         required
                         id="register-name"
                         name="name"
+                        autoComplete="name"
                         value={registerName}
                         onChange={(e) => setRegisterName(e.target.value)}
                         placeholder="FULL NAME"
@@ -321,6 +326,7 @@ export default function Batch001Page() {
                         required
                         id="register-email"
                         name="email"
+                        autoComplete="email"
                         value={registerEmail}
                         onChange={(e) => setRegisterEmail(e.target.value)}
                         placeholder="EMAIL ADDRESS"
@@ -328,6 +334,21 @@ export default function Batch001Page() {
                         className="w-full bg-[#0A0B0D]/95 border border-[#2D323E] focus:border-[#D4AF37] px-4 py-3.5 text-xs font-bold tracking-widest uppercase text-[#E8E2D6] placeholder:text-white/30 outline-none rounded-xl"
                       />
                       <Mail className="w-4 h-4 text-white/30 absolute right-4 top-1/2 -translate-y-1/2" />
+                    </div>
+
+                    {/* DATE OF BIRTH INPUT FIELD */}
+                    <div className="relative">
+                      <input
+                        type="date"
+                        required
+                        id="register-birthdate"
+                        name="birthDate"
+                        value={registerBirthDate}
+                        onChange={(e) => setRegisterBirthDate(e.target.value)}
+                        aria-label="Date of Birth"
+                        className="w-full bg-[#0A0B0D]/95 border border-[#2D323E] focus:border-[#D4AF37] px-4 py-3.5 text-xs font-bold tracking-widest uppercase text-[#E8E2D6] placeholder:text-white/30 outline-none rounded-xl [color-scheme:dark]"
+                      />
+                      <Calendar className="w-4 h-4 text-white/30 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
                   </div>
 

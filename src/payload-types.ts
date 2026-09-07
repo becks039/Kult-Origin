@@ -146,6 +146,10 @@ export interface User {
   name: string;
   phone?: string | null;
   role: 'admin' | 'customer';
+  /**
+   * Used later for Birthday Protocol automation.
+   */
+  birthDate?: string | null;
   isFounder?: boolean | null;
   /**
    * Founder position from 1 to 50. Example: 12 = 012/050.
@@ -155,10 +159,6 @@ export interface User {
    * Annual customer spending in PKR.
    */
   annualSpend?: number | null;
-  /**
-   * Used later for Birthday Protocol automation.
-   */
-  dob?: string | null;
   referralCode?: string | null;
   originPoints?: number | null;
   updatedAt: string;
@@ -188,6 +188,11 @@ export interface AccessRequest {
   id: number;
   name: string;
   email: string;
+  phoneNumber?: string | null;
+  /**
+   * Customer date of birth collected at key request.
+   */
+  birthDate?: string | null;
   /**
    * Automatically generated access key.
    */
@@ -232,6 +237,8 @@ export interface Waitlist {
   id: number;
   fullName: string;
   email: string;
+  phoneNumber?: string | null;
+  birthDate?: string | null;
   /**
    * Access key generated for this customer.
    */
@@ -506,10 +513,10 @@ export interface UsersSelect<T extends boolean = true> {
   name?: T;
   phone?: T;
   role?: T;
+  birthDate?: T;
   isFounder?: T;
   founderNumber?: T;
   annualSpend?: T;
-  dob?: T;
   referralCode?: T;
   originPoints?: T;
   updatedAt?: T;
@@ -536,6 +543,8 @@ export interface UsersSelect<T extends boolean = true> {
 export interface AccessRequestsSelect<T extends boolean = true> {
   name?: T;
   email?: T;
+  phoneNumber?: T;
+  birthDate?: T;
   accessKey?: T;
   founderNumber?: T;
   founderKey?: T;
@@ -551,6 +560,8 @@ export interface AccessRequestsSelect<T extends boolean = true> {
 export interface WaitlistSelect<T extends boolean = true> {
   fullName?: T;
   email?: T;
+  phoneNumber?: T;
+  birthDate?: T;
   accessKey?: T;
   status?: T;
   founderKey?: T;
