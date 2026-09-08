@@ -21,8 +21,18 @@ export async function POST(req: Request) {
       limit: 10,
     });
 
+    if (!existingProducts.docs.length) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'No active products found in system to associate order with.',
+        },
+        { status: 400 }
+      );
+    }
+
     // Default fallback to the first valid product ID if the payload provides a non-existent/mock ID (like "1")
-    const defaultProductId = existingProducts.docs[0]?.id;
+    const defaultProductId = existingProducts.docs[0].id;
 
     // 2. Sanitize items array to ensure `product` holds a valid Payload document ID
     const sanitizedItems = Array.isArray(body.items)
@@ -45,14 +55,16 @@ export async function POST(req: Request) {
     };
 
     // 3. Create order document in Payload CMS
+    // Setting overrideAccess ensures collection hooks and actions execute smoothly
     const order = await payload.create({
       collection: 'orders',
       data: orderPayload,
+      overrideAccess: true,
     });
 
     console.log('=================================');
     console.log('ORDER CREATED IN PAYLOAD:');
-    console.log(order);
+    console.log(JSON.stringify(order, null, 2));
     console.log('=================================');
 
     return NextResponse.json(
@@ -75,10 +87,10 @@ export async function POST(req: Request) {
       {
         success: false,
         message: error?.message || 'Failed to create order',
-        error: error?.data || null,
+        details: error?.data || error?.errors || null,
       },
       {
-        status: 400, // Return 400 Bad Request for Payload validation issues
+        status: 400,
       }
     );
   }

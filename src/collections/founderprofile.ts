@@ -1,4 +1,4 @@
-import { CollectionConfig } from 'payload'
+import type { CollectionConfig } from 'payload'
 
 export const FounderProfiles: CollectionConfig = {
   slug: 'founder-profiles',
@@ -16,10 +16,10 @@ export const FounderProfiles: CollectionConfig = {
   },
 
   access: {
-    create: ({ req: { user } }) => Boolean(user?.role === 'admin' || !user), // Allows server hook creation
-    read: ({ req: { user } }) => Boolean(user),
-    update: ({ req: { user } }) => Boolean(user?.role === 'admin'),
-    delete: ({ req: { user } }) => Boolean(user?.role === 'admin'),
+    create: ({ req }) => Boolean(req?.user?.role === 'admin' || !req?.user),
+    read: ({ req }) => Boolean(req?.user),
+    update: ({ req }) => Boolean(req?.user?.role === 'admin'),
+    delete: ({ req }) => Boolean(req?.user?.role === 'admin'),
   },
 
   fields: [
@@ -74,7 +74,7 @@ export const FounderProfiles: CollectionConfig = {
     {
       name: 'joinedAt',
       type: 'date',
-      defaultValue: () => new Date(),
+      defaultValue: () => new Date().toISOString(),
       admin: {
         readOnly: true,
       },

@@ -94,61 +94,56 @@ export const Waitlist: CollectionConfig = {
             .toString('hex')
             .toUpperCase()}`
         }
+
+        if (data.birthDate) {
+          const parsed = new Date(data.birthDate)
+          if (!isNaN(parsed.getTime())) {
+            data.birthDate = parsed.toISOString()
+          }
+        }
+
         return data
       },
     ],
 
     afterChange: [
       async ({ doc, previousDoc, operation, req, context }) => {
-        // Prevent recursive loop execution
-        if (context?.preventHookRecursion) {
-          return
-        }
-
-        if (operation !== 'update' || doc.status !== 'SHORTLISTED') {
-          return
-        }
-
-        if (previousDoc?.status === 'SHORTLISTED') {
-          return
-        }
+        if (context?.preventHookRecursion) return
+        if (operation !== 'update' || doc.status !== 'SHORTLISTED') return
+        if (previousDoc?.status === 'SHORTLISTED') return
 
         const email = doc.email?.toLowerCase().trim()
         if (!email) {
-          req.payload.logger.error('[WAITLIST HOOK] Waitlist item has no email.')
+          req.payload.logger.error('[WAITLIST HOOK] Waitlist record email is missing.')
           return
         }
 
         try {
           // -------------------------------------------------------------
-          // 0. EXTRACT PHONE & DOB (STRICT FIELD CHECK)
+          // 1. EXTRACT DOB AND PHONE SAFELY
           // -------------------------------------------------------------
           let userDob: string | null = doc.birthDate || null
           let userPhone: string | null = doc.phoneNumber || null
 
           try {
-            const accessRequestDocs = await req.payload.find({
+            const accessReqs = await req.payload.find({
               collection: 'access-requests',
               where: { email: { equals: email } },
               limit: 1,
+              req,
               overrideAccess: true,
             })
 
-            if (accessRequestDocs.docs.length > 0) {
-              const rawReqDoc = accessRequestDocs.docs[0] as Record<string, any>
-
-              const rawDob =
-                rawReqDoc.birthDate || rawReqDoc.birthdate || rawReqDoc.dob
-              const rawPhone =
-                rawReqDoc.phoneNumber || rawReqDoc.phone || rawReqDoc.phonenumber
+            if (accessReqs.docs.length > 0) {
+              const rawReq = accessReqs.docs[0] as Record<string, any>
+              const rawDob = rawReq.birthDate || rawReq.birthdate || rawReq.dob
+              const rawPhone = rawReq.phoneNumber || rawReq.phone || rawReq.phonenumber
 
               if (!userDob && rawDob) userDob = rawDob
               if (!userPhone && rawPhone) userPhone = String(rawPhone)
             }
-          } catch (err) {
-            req.payload.logger.error(
-              `[WAITLIST HOOK] Error fetching access-requests for ${email}: ${err}`,
-            )
+          } catch (accessReqErr) {
+            req.payload.logger.warn(`[WAITLIST HOOK] Could not query access-requests: ${accessReqErr}`)
           }
 
           let formattedDob: string | null = null
@@ -159,33 +154,30 @@ export const Waitlist: CollectionConfig = {
             }
           }
 
-          req.payload.logger.info(
-            `[EXTRACTED DATA LOG] Email: ${email} | Phone: ${userPhone} | DOB: ${formattedDob}`,
-          )
-
           // -------------------------------------------------------------
-          // 1. CALCULATE FOUNDER NUMBER
+          // 2. CALCULATE NEXT SAFE FOUNDER NUMBER
           // -------------------------------------------------------------
           const { totalDocs: profileCount } = await req.payload.count({
             collection: 'founder-profiles',
+            req,
             overrideAccess: true,
           })
           const calculatedFounderNumber = profileCount + 1
 
           // -------------------------------------------------------------
-          // 2. CHECK / CREATE / UPDATE USER
+          // 3. CREATE / UPDATE USER
           // -------------------------------------------------------------
           const existingUsers = await req.payload.find({
             collection: 'users',
             where: { email: { equals: email } },
             limit: 1,
+            req,
             overrideAccess: true,
           })
 
           let userRecord: Record<string, any>
 
-          // Strictly mapped standard field names only
-          const userPayloadData: Record<string, any> = {
+          const userDataPayload: Record<string, any> = {
             email,
             name: doc.fullName,
             role: 'customer',
@@ -200,7 +192,8 @@ export const Waitlist: CollectionConfig = {
             userRecord = await req.payload.update({
               collection: 'users',
               id: userRecord.id,
-              data: userPayloadData,
+              data: userDataPayload,
+              req,
               overrideAccess: true,
             })
           } else {
@@ -208,15 +201,16 @@ export const Waitlist: CollectionConfig = {
             userRecord = await req.payload.create({
               collection: 'users',
               data: {
-                ...userPayloadData,
+                ...userDataPayload,
                 password: temporaryPassword,
               },
+              req,
               overrideAccess: true,
             })
           }
 
           // -------------------------------------------------------------
-          // 3. CREATE OR UPDATE FOUNDER PROFILE
+          // 4. CREATE / UPDATE FOUNDER PROFILE
           // -------------------------------------------------------------
           const generatedKeyString =
             doc.accessKey ||
@@ -226,6 +220,7 @@ export const Waitlist: CollectionConfig = {
             collection: 'founder-profiles',
             where: { user: { equals: userRecord.id } },
             limit: 1,
+            req,
             overrideAccess: true,
           })
 
@@ -237,6 +232,7 @@ export const Waitlist: CollectionConfig = {
                 ...(userPhone && { phoneNumber: userPhone }),
                 ...(formattedDob && { birthDate: formattedDob }),
               },
+              req,
               overrideAccess: true,
             })
           } else {
@@ -253,14 +249,15 @@ export const Waitlist: CollectionConfig = {
                 annualSpend: 0,
                 annualSpendCap: 100000,
               },
+              req,
               overrideAccess: true,
             })
           }
 
           // -------------------------------------------------------------
-          // 4. FOUNDER KEY CREATION
+          // 5. CREATE FOUNDER KEY
           // -------------------------------------------------------------
-          const createdKeyDoc = await req.payload.create({
+          await req.payload.create({
             collection: 'founder-keys',
             data: {
               key: generatedKeyString,
@@ -268,41 +265,30 @@ export const Waitlist: CollectionConfig = {
               assignedTo: userRecord.id,
               batch: 'BATCH_001',
             },
+            req,
             overrideAccess: true,
           })
 
-          // -------------------------------------------------------------
-          // 5. MOVE / DELETE RECORD FROM WAITLIST
-          // -------------------------------------------------------------
-          req.payload.logger.info(
-            `[WAITLIST HOOK SUCCESS] Founder sync completed for ${email}`,
-          )
+          req.payload.logger.info(`[WAITLIST HOOK SUCCESS] Founder profile & key created for ${email}`)
 
-          // Background event loop tick par waitlist document clean kar rahe hain
-          setImmediate(async () => {
-            try {
-              await req.payload.delete({
-                collection: 'waitlist',
-                id: doc.id,
-                overrideAccess: true,
-              })
-              req.payload.logger.info(
-                `[WAITLIST MOVED] Record ID ${doc.id} removed from waitlist collection.`,
-              )
-            } catch (deleteErr) {
-              req.payload.logger.error(
-                `[WAITLIST HOOK] Purge error for ID ${doc.id}: ${deleteErr}`,
-              )
-            }
+          // -------------------------------------------------------------
+          // 6. SAFE DELETION FROM WAITLIST
+          // -------------------------------------------------------------
+          await req.payload.delete({
+            collection: 'waitlist',
+            id: doc.id,
+            req,
+            overrideAccess: true,
           })
+
+          req.payload.logger.info(`[WAITLIST MOVED] Record ID ${doc.id} removed successfully.`)
+
         } catch (err: any) {
           req.payload.logger.error(
             `[WAITLIST HOOK ERROR] Failed processing ${email}: ${err?.message || err}`,
           )
           if (err?.data) {
-            req.payload.logger.error(
-              JSON.stringify(err.data, null, 2),
-            )
+            req.payload.logger.error(JSON.stringify(err.data, null, 2))
           }
         }
       },

@@ -1,4 +1,4 @@
-import { CollectionConfig } from 'payload'
+import type { CollectionConfig } from 'payload'
 
 export const FounderKeys: CollectionConfig = {
   slug: 'founder-keys',
@@ -9,10 +9,10 @@ export const FounderKeys: CollectionConfig = {
   },
 
   access: {
-    create: ({ req: { user } }) => Boolean(user?.role === 'admin' || !user),
-    read: ({ req: { user } }) => Boolean(user),
-    update: ({ req: { user } }) => Boolean(user?.role === 'admin'),
-    delete: ({ req: { user } }) => Boolean(user?.role === 'admin'),
+    create: ({ req }) => Boolean(req?.user?.role === 'admin' || !req?.user),
+    read: ({ req }) => Boolean(req?.user),
+    update: ({ req }) => Boolean(req?.user?.role === 'admin'),
+    delete: ({ req }) => Boolean(req?.user?.role === 'admin'),
   },
 
   fields: [
