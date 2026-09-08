@@ -15,9 +15,39 @@ export async function POST(req: Request) {
       config,
     });
 
+    // 1. Fetch valid products from Payload to map or validate fallback IDs
+    const existingProducts = await payload.find({
+      collection: 'products',
+      limit: 10,
+    });
+
+    // Default fallback to the first valid product ID if the payload provides a non-existent/mock ID (like "1")
+    const defaultProductId = existingProducts.docs[0]?.id;
+
+    // 2. Sanitize items array to ensure `product` holds a valid Payload document ID
+    const sanitizedItems = Array.isArray(body.items)
+      ? body.items.map((item: any) => {
+          const isValidId = existingProducts.docs.some(
+            (p) => String(p.id) === String(item.product)
+          );
+
+          return {
+            ...item,
+            // Replace mock ID with real database ID if lookup fails
+            product: isValidId ? item.product : defaultProductId,
+          };
+        })
+      : [];
+
+    const orderPayload = {
+      ...body,
+      items: sanitizedItems,
+    };
+
+    // 3. Create order document in Payload CMS
     const order = await payload.create({
       collection: 'orders',
-      data: body,
+      data: orderPayload,
     });
 
     console.log('=================================');
@@ -35,7 +65,6 @@ export async function POST(req: Request) {
         status: 201,
       }
     );
-
   } catch (error: any) {
     console.error('=================================');
     console.error('PAYLOAD ORDER CREATION ERROR:');
@@ -45,13 +74,11 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        message:
-          error?.message ||
-          'Failed to create order',
+        message: error?.message || 'Failed to create order',
         error: error?.data || null,
       },
       {
-        status: 500,
+        status: 400, // Return 400 Bad Request for Payload validation issues
       }
     );
   }

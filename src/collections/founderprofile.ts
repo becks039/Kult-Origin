@@ -1,10 +1,27 @@
-import { CollectionConfig } from 'payload';
+import { CollectionConfig } from 'payload'
 
 export const FounderProfiles: CollectionConfig = {
   slug: 'founder-profiles',
+
   admin: {
     useAsTitle: 'physicalKeySerial',
+    defaultColumns: [
+      'physicalKeySerial',
+      'user',
+      'founderNumber',
+      'phoneNumber',
+      'birthDate',
+      'joinedAt',
+    ],
   },
+
+  access: {
+    create: ({ req: { user } }) => Boolean(user?.role === 'admin' || !user), // Allows server hook creation
+    read: ({ req: { user } }) => Boolean(user),
+    update: ({ req: { user } }) => Boolean(user?.role === 'admin'),
+    delete: ({ req: { user } }) => Boolean(user?.role === 'admin'),
+  },
+
   fields: [
     {
       name: 'user',
@@ -14,6 +31,26 @@ export const FounderProfiles: CollectionConfig = {
       unique: true,
     },
     {
+      name: 'phoneNumber',
+      type: 'text',
+      label: 'Phone Number',
+      admin: {
+        description: 'Founder contact number.',
+      },
+    },
+    {
+      name: 'birthDate',
+      type: 'date',
+      label: 'Date of Birth',
+      admin: {
+        description: 'Founder date of birth.',
+        date: {
+          pickerAppearance: 'dayOnly',
+          displayFormat: 'yyyy-MM-dd',
+        },
+      },
+    },
+    {
       name: 'founderNumber',
       type: 'number',
       required: true,
@@ -21,6 +58,7 @@ export const FounderProfiles: CollectionConfig = {
       min: 1,
       max: 50,
       admin: {
+        readOnly: true,
         description: 'Allocated sequence (1 to 50)',
       },
     },
@@ -29,6 +67,7 @@ export const FounderProfiles: CollectionConfig = {
       type: 'text',
       unique: true,
       admin: {
+        readOnly: true,
         description: 'Obsidian Key serial number (e.g. 012/050)',
       },
     },
@@ -36,6 +75,9 @@ export const FounderProfiles: CollectionConfig = {
       name: 'joinedAt',
       type: 'date',
       defaultValue: () => new Date(),
+      admin: {
+        readOnly: true,
+      },
     },
     {
       name: 'lifetimeDiscount',
@@ -56,4 +98,18 @@ export const FounderProfiles: CollectionConfig = {
       },
     },
   ],
-};
+
+  hooks: {
+    beforeChange: [
+      async ({ data }) => {
+        if (data.birthDate) {
+          const parsed = new Date(data.birthDate)
+          if (!isNaN(parsed.getTime())) {
+            data.birthDate = parsed.toISOString()
+          }
+        }
+        return data
+      },
+    ],
+  },
+}

@@ -19,7 +19,7 @@ export const AccessRequests: CollectionConfig = {
       name: 'name',
       type: 'text',
       required: true,
-      label: 'Full Name',
+      label: 'fullName',
     },
     {
       name: 'email',
@@ -106,7 +106,7 @@ export const AccessRequests: CollectionConfig = {
             .toUpperCase()}`
         }
 
-        // Auto-convert incoming string to ISO Date for Payload
+        // Auto-convert string date to ISO for Payload
         if (data.birthDate) {
           const parsed = new Date(data.birthDate)
           if (!isNaN(parsed.getTime())) {
@@ -122,12 +122,11 @@ export const AccessRequests: CollectionConfig = {
         const email = doc.email?.toLowerCase().trim()
         if (!email) return
 
+        // 1. New Request -> Create Waitlist Record
         if (operation === 'create') {
           const existingWaitlist = await req.payload.find({
             collection: 'waitlist',
-            where: {
-              email: { equals: email },
-            },
+            where: { email: { equals: email } },
             limit: 1,
             overrideAccess: true,
           })
@@ -149,12 +148,12 @@ export const AccessRequests: CollectionConfig = {
           }
         }
 
+        // 2. Status Changed -> Sync Waitlist & Founder Profile
         if (operation === 'update' && doc.status !== previousDoc?.status) {
+          // Sync Waitlist Status
           const waitlistRecord = await req.payload.find({
             collection: 'waitlist',
-            where: {
-              email: { equals: email },
-            },
+            where: { email: { equals: email } },
             limit: 1,
             overrideAccess: true,
           })
@@ -162,20 +161,71 @@ export const AccessRequests: CollectionConfig = {
           if (waitlistRecord.totalDocs > 0) {
             const waitlistDoc = waitlistRecord.docs[0]
             let targetStatus = waitlistDoc.status
+
             if (doc.status === 'SENT') {
               targetStatus = 'KEY_ISSUED'
+            } else if (doc.status === 'USED') {
+              targetStatus = 'SHORTLISTED'
+            } else if (doc.status === 'REJECTED') {
+              targetStatus = 'REJECTED'
             }
 
             if (targetStatus !== waitlistDoc.status) {
               await req.payload.update({
                 collection: 'waitlist',
                 id: waitlistDoc.id,
-                data: {
-                  status: targetStatus,
-                },
+                data: { status: targetStatus },
                 req,
                 overrideAccess: true,
               })
+            }
+          }
+
+          // Sync to Founder Profile (If matching registered User exists)
+          if (doc.status === 'SENT' || doc.status === 'USED') {
+            const userMatch = await req.payload.find({
+              collection: 'users',
+              where: { email: { equals: email } },
+              limit: 1,
+              overrideAccess: true,
+            })
+
+            if (userMatch.totalDocs > 0) {
+              const userId = userMatch.docs[0].id
+
+              const profileMatch = await req.payload.find({
+                collection: 'founder-profiles',
+                where: { user: { equals: userId } },
+                limit: 1,
+                overrideAccess: true,
+              })
+
+              if (profileMatch.totalDocs > 0) {
+                // Update existing profile
+                await req.payload.update({
+                  collection: 'founder-profiles',
+                  id: profileMatch.docs[0].id,
+                  data: {
+                    phoneNumber: doc.phoneNumber || profileMatch.docs[0].phoneNumber,
+                    birthDate: doc.birthDate || profileMatch.docs[0].birthDate,
+                  },
+                  req,
+                  overrideAccess: true,
+                })
+              } else if (doc.founderNumber) {
+                // Auto-create Founder Profile if founderNumber is assigned
+                await req.payload.create({
+                  collection: 'founder-profiles',
+                  data: {
+                    user: userId,
+                    founderNumber: doc.founderNumber,
+                    phoneNumber: doc.phoneNumber,
+                    birthDate: doc.birthDate,
+                  },
+                  req,
+                  overrideAccess: true,
+                })
+              }
             }
           }
         }

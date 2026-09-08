@@ -15,6 +15,7 @@ import {
   Send,
   Check,
   Calendar,
+  Phone,
 } from 'lucide-react'
 import { getCartData } from '@/lib/cart'
 
@@ -41,7 +42,8 @@ export default function Batch001Page() {
   // Access Request State
   const [registerName, setRegisterName] = useState('')
   const [registerEmail, setRegisterEmail] = useState('')
-  const [registerBirthDate, setRegisterBirthDate] = useState('') // <--- BIRTHDATE STATE
+  const [registerBirthDate, setRegisterBirthDate] = useState('')
+  const [registerPhoneNumber, setRegisterPhoneNumber] = useState('') // <--- PHONE NUMBER STATE ADDED
   const [isRequesting, setIsRequesting] = useState(false)
   const [requestSuccess, setRequestSuccess] = useState(false)
   const [requestError, setRequestError] = useState<string | null>(null)
@@ -92,13 +94,11 @@ export default function Batch001Page() {
         return
       }
 
-      // 1. Storage Keys Set
       localStorage.setItem('kult_access_key', inputCleanKey)
       localStorage.setItem('kult_founder_key', inputCleanKey)
       localStorage.setItem(STORAGE_KEY_ACCESS, 'true')
       localStorage.removeItem(STORAGE_KEY_OLD)
 
-      // 2. Check Previous Cart
       const { isExpired } = getCartData(inputCleanKey)
 
       if (isExpired) {
@@ -108,7 +108,6 @@ export default function Batch001Page() {
         localStorage.setItem('kult_discount_expired', 'false')
       }
 
-      // 3. Notify App & Redirect
       window.dispatchEvent(new Event('cart-updated'))
       window.dispatchEvent(new Event('storage'))
 
@@ -116,7 +115,7 @@ export default function Batch001Page() {
     } catch (err) {
       console.error('KEY VERIFICATION ERROR:', err)
       setError('AUTHENTICATION FAILED // TRY AGAIN')
-    } finally {
+    }  {
       setIsAuthenticating(false)
     }
   }
@@ -138,7 +137,8 @@ export default function Batch001Page() {
         body: JSON.stringify({
           name: registerName.trim(),
           email: registerEmail.trim(),
-          birthDate: registerBirthDate ? registerBirthDate.trim() : null, // <--- PAYLOAD FORWARDED
+          birthDate: registerBirthDate ? registerBirthDate.trim() : null,
+          phoneNumber: registerPhoneNumber ? registerPhoneNumber.trim() : null, // <--- PHONE FORWARDED
         }),
       })
 
@@ -181,11 +181,9 @@ export default function Batch001Page() {
           </div>
         ))}
 
-        {/* Ambient Overlays */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0A0B0D] via-[#0A0B0D]/60 to-[#0A0B0D]/75 z-10" />
         <div className="absolute inset-0 bg-[radial-gradient(#D4AF37_1px,transparent_1px)] [background-size:32px_32px] opacity-20 pointer-events-none z-10" />
 
-        {/* Home Navigation Button */}
         <button
           onClick={() => router.push('/')}
           className="absolute top-4 left-4 sm:top-8 sm:left-8 z-30 flex items-center space-x-2 text-[10px] sm:text-xs text-white/80 hover:text-[#D4AF37] uppercase tracking-[0.2em] transition-all cursor-pointer bg-black/70 backdrop-blur-md px-3.5 py-2 sm:px-4 sm:py-2 rounded-full border border-white/20 active:scale-95"
@@ -194,9 +192,7 @@ export default function Batch001Page() {
           <span>Home</span>
         </button>
 
-        {/* Main Vault Panel */}
         <div className="relative z-20 w-full max-w-3xl bg-[#12141B]/95 border border-[#D4AF37]/40 p-5 sm:p-10 md:p-12 rounded-2xl sm:rounded-3xl backdrop-blur-xl shadow-[0_25px_80px_rgba(0,0,0,0.95)] space-y-6 sm:space-y-8 mt-10 sm:mt-0">
-          {/* Header */}
           <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-4 border-b border-[#2D323E] pb-6 sm:pb-8">
             <div className="space-y-2 text-center sm:text-left">
               <div className="inline-flex items-center space-x-1.5 text-[9px] sm:text-[10px] text-[#D4AF37] bg-[#D4AF37]/15 border border-[#D4AF37]/40 px-3 py-1 rounded-full uppercase tracking-[0.2em] font-bold">
@@ -216,7 +212,6 @@ export default function Batch001Page() {
             </div>
           </div>
 
-          {/* Navigation Tabs */}
           <div className="grid grid-cols-2 gap-2 bg-[#0A0B0D] p-1.5 rounded-xl border border-[#2D323E]">
             <button
               type="button"
@@ -245,7 +240,6 @@ export default function Batch001Page() {
             </button>
           </div>
 
-          {/* Tab 1: Enter Key */}
           {activeTab === 'unlock' && (
             <form onSubmit={handlePasswordSubmit} className="space-y-4 sm:space-y-6">
               <div className="flex flex-col sm:flex-row gap-3 items-stretch">
@@ -294,7 +288,6 @@ export default function Batch001Page() {
             </form>
           )}
 
-          {/* Tab 2: Request Access */}
           {activeTab === 'request' && (
             <div className="space-y-4">
               {!requestSuccess ? (
@@ -304,6 +297,7 @@ export default function Batch001Page() {
                   </p>
 
                   <div className="space-y-3">
+                    {/* FULL NAME */}
                     <div className="relative">
                       <input
                         type="text"
@@ -320,6 +314,7 @@ export default function Batch001Page() {
                       <User className="w-4 h-4 text-white/30 absolute right-4 top-1/2 -translate-y-1/2" />
                     </div>
 
+                    {/* EMAIL */}
                     <div className="relative">
                       <input
                         type="email"
@@ -336,7 +331,24 @@ export default function Batch001Page() {
                       <Mail className="w-4 h-4 text-white/30 absolute right-4 top-1/2 -translate-y-1/2" />
                     </div>
 
-                    {/* DATE OF BIRTH INPUT FIELD */}
+                    {/* PHONE NUMBER FIELD */}
+                    <div className="relative">
+                      <input
+                        type="tel"
+                        required
+                        id="register-phone"
+                        name="phoneNumber"
+                        autoComplete="tel"
+                        value={registerPhoneNumber}
+                        onChange={(e) => setRegisterPhoneNumber(e.target.value)}
+                        placeholder="PHONE NUMBER (E.G. +92 300 1234567)"
+                        aria-label="Phone Number"
+                        className="w-full bg-[#0A0B0D]/95 border border-[#2D323E] focus:border-[#D4AF37] px-4 py-3.5 text-xs font-bold tracking-widest uppercase text-[#E8E2D6] placeholder:text-white/30 outline-none rounded-xl"
+                      />
+                      <Phone className="w-4 h-4 text-white/30 absolute right-4 top-1/2 -translate-y-1/2" />
+                    </div>
+
+                    {/* DATE OF BIRTH FIELD */}
                     <div className="relative">
                       <input
                         type="date"
@@ -395,7 +407,6 @@ export default function Batch001Page() {
             </div>
           )}
 
-          {/* Footer Indicators */}
           <div className="flex items-center justify-between border-t border-[#2D323E] pt-4 text-[9px] sm:text-[10px] text-white/40 uppercase tracking-widest">
             <span>SYSTEM: KULT ORIGIN OS v2.06</span>
             <div className="flex space-x-1.5">

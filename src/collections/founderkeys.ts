@@ -1,10 +1,20 @@
-import { CollectionConfig } from 'payload';
+import { CollectionConfig } from 'payload'
 
 export const FounderKeys: CollectionConfig = {
   slug: 'founder-keys',
+
   admin: {
     useAsTitle: 'key',
+    defaultColumns: ['key', 'status', 'assignedTo', 'batch', 'createdAt'],
   },
+
+  access: {
+    create: ({ req: { user } }) => Boolean(user?.role === 'admin' || !user),
+    read: ({ req: { user } }) => Boolean(user),
+    update: ({ req: { user } }) => Boolean(user?.role === 'admin'),
+    delete: ({ req: { user } }) => Boolean(user?.role === 'admin'),
+  },
+
   fields: [
     {
       name: 'key',
@@ -12,6 +22,9 @@ export const FounderKeys: CollectionConfig = {
       required: true,
       unique: true,
       index: true,
+      admin: {
+        description: 'Allocated access key string',
+      },
     },
     {
       name: 'status',
@@ -35,4 +48,4 @@ export const FounderKeys: CollectionConfig = {
       defaultValue: 'BATCH_001',
     },
   ],
-};
+}

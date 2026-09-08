@@ -144,7 +144,7 @@ export interface UserAuthOperations {
 export interface User {
   id: number;
   name: string;
-  phone?: string | null;
+  phoneNumber?: string | null;
   role: 'admin' | 'customer';
   /**
    * Used later for Birthday Protocol automation.
@@ -511,7 +511,7 @@ export interface PayloadMigration {
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
-  phone?: T;
+  phoneNumber?: T;
   role?: T;
   birthDate?: T;
   isFounder?: T;

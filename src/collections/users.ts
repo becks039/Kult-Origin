@@ -7,7 +7,7 @@ export const Users: CollectionConfig = {
 
   admin: {
     useAsTitle: 'email',
-    defaultColumns: ['email', 'name', 'birthDate', 'role', 'isFounder'],
+    defaultColumns: ['email', 'name', 'birthDate', 'phoneNumber', 'role', 'isFounder'],
   },
 
   access: {
@@ -47,7 +47,7 @@ export const Users: CollectionConfig = {
     },
 
     {
-      name: 'phone',
+      name: 'phoneNumber',
       type: 'text',
       label: 'Phone Number',
     },
@@ -67,7 +67,7 @@ export const Users: CollectionConfig = {
     },
 
     // -------------------------
-    // DATE OF BIRTH
+    // DATE OF BIRTH (Fixed to camelCase birthDate)
     // -------------------------
     {
       name: 'birthDate',
@@ -136,4 +136,19 @@ export const Users: CollectionConfig = {
       label: 'Origin Points',
     },
   ],
+
+  hooks: {
+    beforeChange: [
+      async ({ data }) => {
+        // Safe ISO conversion for birthDate
+        if (data.birthDate) {
+          const parsed = new Date(data.birthDate)
+          if (!isNaN(parsed.getTime())) {
+            data.birthDate = parsed.toISOString()
+          }
+        }
+        return data
+      },
+    ],
+  },
 }
