@@ -17,6 +17,7 @@ import { Users } from '@/collections/users'
 import { AccessRequests } from '@/collections/AccessRequests'
 import { Waitlist } from '@/collections/waitlist'
 import { Orders } from '@/collections/orders'
+import { Reviews } from '@/collections/reviews' // Single Source of Truth
 
 export default buildConfig({
   admin: {
@@ -28,6 +29,7 @@ export default buildConfig({
     AccessRequests,
     Waitlist,
     Orders,
+    Reviews, // 👈 Imported Collection
 
     // MEDIA
     {
@@ -228,84 +230,6 @@ export default buildConfig({
           type: 'text',
           defaultValue: 'BATCH_001',
           required: true,
-        },
-      ],
-    },
-
-    // REVIEWS
-    {
-      slug: 'reviews',
-      admin: {
-        useAsTitle: 'content',
-        hidden: false,
-        group: 'Content & Assets',
-      },
-      fields: [
-        {
-          name: 'customer',
-          type: 'relationship',
-          relationTo: 'users',
-          required: true,
-        },
-        {
-          name: 'product',
-          type: 'relationship',
-          relationTo: 'products',
-          required: true,
-        },
-        {
-          name: 'type',
-          type: 'select',
-          required: true,
-          options: [
-            {
-              label: 'Text Review (5% Reward)',
-              value: 'TEXT',
-            },
-            {
-              label: 'Photo Review (10% Reward)',
-              value: 'PHOTO',
-            },
-            {
-              label: 'Video Review (20% Reward)',
-              value: 'VIDEO',
-            },
-          ],
-        },
-        {
-          name: 'content',
-          type: 'textarea',
-          required: true,
-        },
-        {
-          name: 'media',
-          type: 'array',
-          fields: [
-            {
-              name: 'file',
-              type: 'upload',
-              relationTo: 'media',
-            },
-          ],
-        },
-        {
-          name: 'status',
-          type: 'select',
-          defaultValue: 'PENDING',
-          options: [
-            {
-              label: 'Pending',
-              value: 'PENDING',
-            },
-            {
-              label: 'Approved',
-              value: 'APPROVED',
-            },
-            {
-              label: 'Rejected',
-              value: 'REJECTED',
-            },
-          ],
         },
       ],
     },

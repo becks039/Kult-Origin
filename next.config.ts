@@ -6,10 +6,6 @@ const nextConfig: NextConfig = {
     // Vercel build ke dauran TypeScript errors ko skip karega
     ignoreBuildErrors: true,
   },
-  eslint: {
-    // Build ke dauran ESLint warnings ko ignore karega
-    ignoreDuringBuilds: true,
-  },
   images: {
     qualities: [75, 100],
     remotePatterns: [

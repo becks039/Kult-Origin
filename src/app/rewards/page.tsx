@@ -23,6 +23,7 @@ export default function UGCRewardsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
+  const [generatedDiscountCode, setGeneratedDiscountCode] = useState<string | null>(null);
 
   // Auto calculate discount percentage base on review type
   const targetDiscountPercentage = reviewType === 'TEXT' ? 5 : reviewType === 'PHOTO' ? 10 : 20;
@@ -47,24 +48,28 @@ export default function UGCRewardsPage() {
       if (selectedFile) {
         const filePayload = new FormData();
         filePayload.append('file', selectedFile);
+        
+        // REQUIRED FIX: Payload Media collection requires an 'alt' text field
+        filePayload.append('alt', selectedFile.name || 'UGC Review Attachment');
 
         const uploadRes = await fetch('/api/media', {
           method: 'POST',
-          body: filePayload,
+          body: filePayload, // Content-Type header manually set mat karein, browser automatic boundary handle karta hai
         });
 
+        const uploadData = await uploadRes.json();
+
         if (uploadRes.ok) {
-          const mediaDoc = await uploadRes.json();
-          const uploadedId = mediaDoc.doc?.id || mediaDoc.id;
+          const uploadedId = uploadData.doc?.id || uploadData.id;
           if (uploadedId) mediaIds.push(uploadedId);
         } else {
-          throw new Error('Media file upload failed. Please verify file format.');
+          throw new Error(uploadData.errors?.[0]?.message || 'Media file upload failed. Check file size/format.');
         }
       } else if (reviewType !== 'TEXT') {
         throw new Error(`Media attachment is mandatory for ${reviewType} review tier.`);
       }
 
-      // Step 2: Post Review record to route handler with PENDING status for Admin Approval
+      // Step 2: Post Review record to API route handler
       const response = await fetch('/api/ugc-review', {
         method: 'POST',
         headers: {
@@ -76,21 +81,22 @@ export default function UGCRewardsPage() {
           type: reviewType,
           content: formData.content,
           mediaIds,
-          requestedDiscount: targetDiscountPercentage,
-          status: 'PENDING'
         }),
       });
 
       const result = await response.json();
 
-      if (response.ok && (result.success || result.doc || result.id)) {
+      if (response.ok && result.success) {
+        if (result.discountCode) {
+          setGeneratedDiscountCode(result.discountCode);
+        }
         setSubmissionSuccess(true);
       } else {
-        setErrorMessage(result.message || 'Failed to submit review to system.');
+        throw new Error(result.message || 'Failed to submit review to system.');
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Network communication error.');
-    } finally {
+    } {
       setIsSubmitting(false);
     }
   };
@@ -170,7 +176,10 @@ export default function UGCRewardsPage() {
             
             {/* TIER 01: TEXT */}
             <div 
-              onClick={() => setReviewType('TEXT')}
+              onClick={() => {
+                setReviewType('TEXT');
+                setSelectedFile(null);
+              }}
               className={`cursor-pointer p-5 sm:p-6 rounded-2xl border transition-all duration-300 backdrop-blur-md active:scale-98 ${
                 reviewType === 'TEXT' 
                   ? 'bg-[#12141B]/95 border-[#D4AF37]/60 shadow-[0_0_30px_rgba(212,175,55,0.25)] scale-[1.02]' 
@@ -186,7 +195,10 @@ export default function UGCRewardsPage() {
 
             {/* TIER 02: PHOTO */}
             <div 
-              onClick={() => setReviewType('PHOTO')}
+              onClick={() => {
+                setReviewType('PHOTO');
+                setSelectedFile(null);
+              }}
               className={`cursor-pointer p-5 sm:p-6 rounded-2xl border transition-all duration-300 backdrop-blur-md active:scale-98 ${
                 reviewType === 'PHOTO' 
                   ? 'bg-[#12141B]/95 border-[#D4AF37]/60 shadow-[0_0_30px_rgba(212,175,55,0.25)] scale-[1.02]' 
@@ -202,7 +214,10 @@ export default function UGCRewardsPage() {
 
             {/* TIER 03: VIDEO */}
             <div 
-              onClick={() => setReviewType('VIDEO')}
+              onClick={() => {
+                setReviewType('VIDEO');
+                setSelectedFile(null);
+              }}
               className={`cursor-pointer p-5 sm:p-6 rounded-2xl border transition-all duration-300 backdrop-blur-md relative overflow-hidden active:scale-98 ${
                 reviewType === 'VIDEO' 
                   ? 'bg-[#12141B]/95 border-[#D4AF37]/60 shadow-[0_0_35px_rgba(212,175,55,0.35)] scale-[1.02]' 
@@ -327,6 +342,13 @@ export default function UGCRewardsPage() {
               <h2 className="text-2xl sm:text-3xl font-black text-[#E8E2D6] uppercase tracking-tight">
                 SUBMISSION TRANSMITTED
               </h2>
+
+              {generatedDiscountCode && (
+                <div className="bg-[#0A0B0D] border border-[#D4AF37]/50 rounded-xl p-4 my-4 max-w-md mx-auto">
+                  <p className="text-[10px] text-[#D4AF37] uppercase tracking-widest mb-1">YOUR EXCLUSIVE DISCOUNT CODE</p>
+                  <p className="text-xl sm:text-2xl font-black text-[#E8E2D6] tracking-widest select-all">{generatedDiscountCode}</p>
+                </div>
+              )}
               
               <p className="text-[11px] sm:text-xs text-[#E8E2D6]/70 uppercase tracking-widest max-w-md mx-auto leading-relaxed">
                 YOUR REVIEW HAS BEEN STORED IN PAYLOAD CMS. ONCE ADMIN APPROVES THE SUBMISSION, YOUR DEDICATED PROMO CODE ({targetDiscountPercentage}% DISCOUNT) WILL BE DISPATCHED TO YOUR ACCOUNT.

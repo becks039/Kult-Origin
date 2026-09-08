@@ -71,12 +71,12 @@ export interface Config {
     'access-requests': AccessRequest;
     waitlist: Waitlist;
     orders: Order;
+    reviews: Review;
     media: Media;
     categories: Category;
     products: Product;
     'founder-profiles': FounderProfile;
     'founder-keys': FounderKey;
-    reviews: Review;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -88,12 +88,12 @@ export interface Config {
     'access-requests': AccessRequestsSelect<false> | AccessRequestsSelect<true>;
     waitlist: WaitlistSelect<false> | WaitlistSelect<true>;
     orders: OrdersSelect<false> | OrdersSelect<true>;
+    reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
     'founder-profiles': FounderProfilesSelect<false> | FounderProfilesSelect<true>;
     'founder-keys': FounderKeysSelect<false> | FounderKeysSelect<true>;
-    reviews: ReviewsSelect<false> | ReviewsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -365,6 +365,41 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "reviews".
+ */
+export interface Review {
+  id: number;
+  /**
+   * Customer Email or ID from frontend
+   */
+  customer: string;
+  /**
+   * Product ID or SKU
+   */
+  product: string;
+  type: 'TEXT' | 'PHOTO' | 'VIDEO';
+  content: string;
+  status?: ('PENDING' | 'APPROVED' | 'REJECTED') | null;
+  /**
+   * Uploaded Media IDs array
+   */
+  media?:
+    | {
+        file: number | Media;
+        id?: string | null;
+      }[]
+    | null;
+  discountCode?: string | null;
+  discountPercentage?: number | null;
+  /**
+   * Track if n8n pushed this UGC video to Meta/TikTok Ads
+   */
+  pushedToAds?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "founder-profiles".
  */
 export interface FounderProfile {
@@ -376,26 +411,6 @@ export interface FounderProfile {
   lifetimeDiscount?: number | null;
   annualSpend?: number | null;
   annualSpendCap?: number | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "reviews".
- */
-export interface Review {
-  id: number;
-  customer: number | User;
-  product: number | Product;
-  type: 'TEXT' | 'PHOTO' | 'VIDEO';
-  content: string;
-  media?:
-    | {
-        file?: (number | null) | Media;
-        id?: string | null;
-      }[]
-    | null;
-  status?: ('PENDING' | 'APPROVED' | 'REJECTED') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -440,6 +455,10 @@ export interface PayloadLockedDocument {
         value: number | Order;
       } | null)
     | ({
+        relationTo: 'reviews';
+        value: number | Review;
+      } | null)
+    | ({
         relationTo: 'media';
         value: number | Media;
       } | null)
@@ -458,10 +477,6 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'founder-keys';
         value: number | FounderKey;
-      } | null)
-    | ({
-        relationTo: 'reviews';
-        value: number | Review;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -605,6 +620,28 @@ export interface OrdersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "reviews_select".
+ */
+export interface ReviewsSelect<T extends boolean = true> {
+  customer?: T;
+  product?: T;
+  type?: T;
+  content?: T;
+  status?: T;
+  media?:
+    | T
+    | {
+        file?: T;
+        id?: T;
+      };
+  discountCode?: T;
+  discountPercentage?: T;
+  pushedToAds?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
@@ -686,25 +723,6 @@ export interface FounderKeysSelect<T extends boolean = true> {
   status?: T;
   assignedTo?: T;
   batch?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "reviews_select".
- */
-export interface ReviewsSelect<T extends boolean = true> {
-  customer?: T;
-  product?: T;
-  type?: T;
-  content?: T;
-  media?:
-    | T
-    | {
-        file?: T;
-        id?: T;
-      };
-  status?: T;
   updatedAt?: T;
   createdAt?: T;
 }

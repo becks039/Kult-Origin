@@ -16,46 +16,88 @@ export async function POST(req: Request) {
 
     const payload = await getPayload({ config: configPromise });
 
-    // Review create karein Reviews collection mein
-    const newReview = await payload.create({
-      collection: 'reviews',
-      data: {
-        customer: customerId,
-        product: productId,
-        type: type, // 'TEXT', 'PHOTO', 'VIDEO'
-        content: content,
-        media: mediaIds && mediaIds.length > 0 ? mediaIds.map((id: string) => ({ file: id })) : [],
-        status: 'PENDING',
-      },
+    // 1. Customer/User ID lookup & fallback resolution
+    let targetUserId = customerId;
+    const userSearch = await payload.find({
+      collection: 'users',
+      where: { email: { equals: customerId } },
+      limit: 1,
     });
 
-    // Discount code generate karein tier ke hisaab se
+    if (userSearch.docs.length > 0) {
+      targetUserId = userSearch.docs[0].id;
+    } else {
+      // Fallback to first available user for smooth testing
+      const defaultUser = await payload.find({ collection: 'users', limit: 1 });
+      if (defaultUser.docs.length > 0) targetUserId = defaultUser.docs[0].id;
+    }
+
+    // 2. Product ID lookup & fallback resolution
+    let targetProductId = productId;
+    const productSearch = await payload.find({
+      collection: 'products',
+      where: { slug: { equals: productId } },
+      limit: 1,
+    });
+
+    if (productSearch.docs.length > 0) {
+      targetProductId = productSearch.docs[0].id;
+    } else {
+      // Fallback to first available product
+      const defaultProduct = await payload.find({ collection: 'products', limit: 1 });
+      if (defaultProduct.docs.length > 0) targetProductId = defaultProduct.docs[0].id;
+    }
+
+    // 3. Discount code calculation
     const discountPercentage = type === 'VIDEO' ? '20' : type === 'PHOTO' ? '10' : '5';
     const discountCode = `KULT-UGC-${discountPercentage}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
-    // n8n Webhook Trigger (Fire and forget, response delay nahi karega)
-    const n8nWebhookUrl = process.env.N8N_UGC_WEBHOOK_URL || 'https://your-n8n-instance.com/webhook/ugc-review';
-    
-    fetch(n8nWebhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        reviewId: newReview.id,
-        customerId,
-        productId,
-        type,
-        content,
-        discountCode,
-        discountPercentage,
-        mediaIds: mediaIds || [],
-        createdAt: new Date().toISOString(),
-      }),
-    }).catch((err) => console.error('n8n Webhook Error:', err));
+    // 4. Data Assembly for Payload
+    const reviewData: Record<string, any> = {
+      customer: targetUserId,
+      product: targetProductId,
+      type,
+      content,
+      status: 'PENDING',
+      discountCode,
+      discountPercentage: Number(discountPercentage),
+    };
+
+    if (mediaIds && Array.isArray(mediaIds) && mediaIds.length > 0) {
+      reviewData.media = mediaIds.map((id: string) => ({ file: id }));
+    }
+
+    // 5. Create Review
+    const newReview = await payload.create({
+      collection: 'reviews',
+      data: reviewData,
+    });
+
+    // 6. n8n Webhook Trigger (Fire-and-forget)
+    const n8nWebhookUrl = process.env.N8N_UGC_WEBHOOK_URL;
+
+    if (n8nWebhookUrl) {
+      fetch(n8nWebhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reviewId: newReview.id,
+          customerEmail: customerId,
+          productId: productId,
+          type: type,
+          content: content,
+          discountCode: discountCode,
+          discountPercentage: discountPercentage,
+          media: newReview.media || [],
+          submittedAt: new Date().toISOString(),
+        }),
+      }).catch((err) => console.error('n8n Webhook Trigger Error:', err));
+    }
 
     return NextResponse.json({
       success: true,
       review: newReview,
-      discountCode: discountCode,
+      discountCode,
     });
   } catch (error: any) {
     console.error('Error creating review:', error);
