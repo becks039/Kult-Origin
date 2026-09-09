@@ -295,14 +295,9 @@ export default buildConfig({
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
-
-  db: postgresAdapter({
+db: postgresAdapter({
     pool: {
-      host: 'localhost',
-      port: 1234,
-      user: 'postgres',
-      password: '1234',
-      database: 'kult-origin',
+      connectionString: process.env.DATABASE_URI,
     },
     push: process.env.NODE_ENV !== 'production',
   }),
