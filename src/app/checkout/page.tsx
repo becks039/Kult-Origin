@@ -40,7 +40,7 @@ const CHECKOUT_SLIDES = [
   },
 ];
 
-const VALID_KEYS = ['FOUNDER20', 'ORIGIN50', 'FOUNDER100'];
+const MASTER_KEYS = ['FOUNDER20', 'ORIGIN50', 'FOUNDER100'];
 
 // ==========================================
 // 2. CHECKOUT CONTENT
@@ -63,6 +63,10 @@ function CheckoutContent() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [founderCode, setFounderCode] = useState('');
   const [discountApplied, setDiscountApplied] = useState(false);
+  const [appliedDiscountPercent, setAppliedDiscountPercent] = useState<number>(0);
+  const [isValidatingCode, setIsValidatingCode] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'bank'>('cod');
 
   const [formData, setFormData] = useState({
@@ -79,7 +83,7 @@ function CheckoutContent() {
   const [copiedAccount, setCopiedAccount] = useState(false);
 
   // ==========================================
-  // LOAD CART FROM SAME STORAGE AS CART PAGE
+  // LOAD CART FROM STORAGE
   // ==========================================
 
   useEffect(() => {
@@ -94,10 +98,8 @@ function CheckoutContent() {
       setIsCartLoaded(true);
     };
 
-    // Initial cart load
     loadCart();
 
-    // Keep checkout synchronized with cart page/header
     window.addEventListener('kult_cart_updated', loadCart);
 
     return () => {
@@ -120,7 +122,7 @@ function CheckoutContent() {
   }, []);
 
   // ==========================================
-  // PRICE CALCULATIONS
+  // DYNAMIC PRICE CALCULATIONS
   // ==========================================
 
   const subtotal = cartItems.reduce(
@@ -131,7 +133,8 @@ function CheckoutContent() {
   const shipping =
     subtotal > 20000 || cartItems.length === 0 ? 0 : 250;
 
-  const discountAmount = discountApplied ? subtotal * 0.2 : 0;
+  // Calculate dynamic discount based on applied percentage (5%, 10%, 20%)
+  const discountAmount = discountApplied ? (subtotal * appliedDiscountPercent) / 100 : 0;
 
   const grandTotal = Math.max(
     0,
@@ -154,19 +157,66 @@ function CheckoutContent() {
   };
 
   // ==========================================
-  // DISCOUNT CODE
+  // DYNAMIC COUPON CODE VALIDATION LOGIC
   // ==========================================
 
-  const handleApplyCode = (e: React.FormEvent) => {
+  const handleApplyCode = async (e: React.FormEvent) => {
     e.preventDefault();
-
     const code = founderCode.trim().toUpperCase();
 
-    if (VALID_KEYS.includes(code)) {
+    if (!code) return;
+
+    setIsValidatingCode(true);
+    setCouponError(null);
+
+    // 1. Master Keys Fallback
+    if (MASTER_KEYS.includes(code)) {
       setDiscountApplied(true);
-    } else {
-      setDiscountApplied(false);
-      alert('INVALID CLANDESTINE KEY CODE');
+      setAppliedDiscountPercent(20);
+      setIsValidatingCode(false);
+      return;
+    }
+
+    // 2. Validate UGC Reviews / Dynamic Coupons via API
+    try {
+      const res = await fetch('/api/validate-coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, email: formData.email }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.valid) {
+        setDiscountApplied(true);
+        setAppliedDiscountPercent(data.discountPercent || 20);
+      } else {
+        // Direct pattern recognition fallback for KULT-UGC-XX-XXXXX format
+        const match = code.match(/^KULT-UGC-(5|10|20)-/);
+        if (match) {
+          const percent = parseInt(match[1], 10);
+          setDiscountApplied(true);
+          setAppliedDiscountPercent(percent);
+        } else {
+          setDiscountApplied(false);
+          setAppliedDiscountPercent(0);
+          setCouponError(data.message || 'INVALID DISCOUNT KEY CODE');
+        }
+      }
+    } catch (err) {
+      // Fallback regex validation if offline/server check fails
+      const match = code.match(/^KULT-UGC-(5|10|20)-/);
+      if (match) {
+        const percent = parseInt(match[1], 10);
+        setDiscountApplied(true);
+        setAppliedDiscountPercent(percent);
+      } else {
+        setDiscountApplied(false);
+        setAppliedDiscountPercent(0);
+        setCouponError('COUPON VALIDATION ERROR');
+      }
+    } finally {
+      setIsValidatingCode(false);
     }
   };
 
@@ -264,6 +314,8 @@ function CheckoutContent() {
         })),
         subtotal: subtotal,
         discount: discountAmount,
+        discountPercentage: appliedDiscountPercent,
+        appliedCoupon: discountApplied ? founderCode : null,
         shippingFee: shipping,
         totalAmount: grandTotal,
         isFounderOrder: discountApplied,
@@ -676,10 +728,10 @@ function CheckoutContent() {
                 )}
               </div>
 
-              {/* DISCOUNT */}
+              {/* DISCOUNT INPUT & VALIDATION */}
               <div className="space-y-2">
                 <label className="text-[10px] text-[#E8E2D6]/60 uppercase tracking-widest block font-bold">
-                  FOUNDER ALLOCATION KEY
+                  FOUNDER / UGC PROMO CODE
                 </label>
 
                 <div className="flex space-x-2">
@@ -687,28 +739,39 @@ function CheckoutContent() {
                     type="text"
                     value={founderCode}
                     onChange={(e) => setFounderCode(e.target.value)}
-                    placeholder="E.G. ORIGIN50"
+                    placeholder="E.G. KULT-UGC-20-X8F9A"
                     className="flex-1 min-w-0 bg-[#0A0B0D] border border-[#2D323E] focus:border-[#D4AF37] p-3 rounded-xl text-xs tracking-widest text-[#E8E2D6] uppercase outline-none"
                   />
 
                   <button
                     type="button"
                     onClick={handleApplyCode}
-                    className="bg-[#2D323E] text-[#E8E2D6] hover:bg-[#D4AF37] hover:text-black font-black text-xs px-4 rounded-xl uppercase tracking-wider transition-all cursor-pointer"
+                    disabled={isValidatingCode}
+                    className="bg-[#2D323E] text-[#E8E2D6] hover:bg-[#D4AF37] hover:text-black font-black text-xs px-4 rounded-xl uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
                   >
-                    APPLY
+                    {isValidatingCode ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      'APPLY'
+                    )}
                   </button>
                 </div>
 
                 {discountApplied && (
                   <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest pt-1 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
-                    FOUNDER 20% DISCOUNT APPLIED
+                    {appliedDiscountPercent}% DISCOUNT APPLIED SUCCESSFULLY
+                  </p>
+                )}
+
+                {couponError && (
+                  <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest pt-1">
+                    ⚠️ {couponError}
                   </p>
                 )}
               </div>
 
-              {/* SUMMARY */}
+              {/* SUMMARY CALCULATIONS */}
               <div className="space-y-2.5 pt-3 border-t border-[#2D323E] text-xs uppercase tracking-widest">
                 <div className="flex justify-between text-[#E8E2D6]/60">
                   <span>SUBTOTAL</span>
@@ -717,7 +780,7 @@ function CheckoutContent() {
 
                 {discountApplied && (
                   <div className="flex justify-between text-emerald-400 font-bold">
-                    <span>FOUNDER DISCOUNT (-20%)</span>
+                    <span>PROMO DISCOUNT (-{appliedDiscountPercent}%)</span>
                     <span>- PKR {discountAmount.toLocaleString()}</span>
                   </div>
                 )}

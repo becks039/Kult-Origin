@@ -1,18 +1,28 @@
-import type { CollectionConfig } from 'payload';
+import type { CollectionConfig } from 'payload'
 
 export const Media: CollectionConfig = {
   slug: 'media',
+
   access: {
     read: () => true,
-    create: () => true, // Anonymous uploads allow karein frontend review form ke liye
+    create: () => true,
   },
+
   upload: {
-    staticURL: '/media',
-    staticDir: 'media',
+    // FIX: Local storage ko enable karein taakay disk par image save ho sakay
+    disableLocalStorage: false,
+
     adminThumbnail: 'thumbnail',
-    mimeTypes: ['image/*', 'video/mp4', 'video/webm', 'video/quicktime'],
-    maxFileSize: 50 * 1024 * 1024, // 50MB limit setup karein videos ke liye
-    // imageSizes ko dynamically handle karne ke liye format filter add karein
+
+    mimeTypes: [
+      'image/*',
+      'video/mp4',
+      'video/webm',
+      'video/quicktime',
+    ],
+
+    maxFileSize: 50 * 1024 * 1024,
+
     imageSizes: [
       {
         name: 'thumbnail',
@@ -34,15 +44,17 @@ export const Media: CollectionConfig = {
       },
     ],
   },
+
   fields: [
     {
       name: 'alt',
       type: 'text',
       required: false,
     },
+
     {
       name: 'caption',
       type: 'text',
     },
   ],
-};
+}

@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       if (defaultProduct.docs.length > 0) targetProductId = defaultProduct.docs[0].id;
     }
 
-    // 3. Discount code calculation
+    // 3. Direct Code-Level Discount Calculation (No external n8n dependency)
     const discountPercentage = type === 'VIDEO' ? '20' : type === 'PHOTO' ? '10' : '5';
     const discountCode = `KULT-UGC-${discountPercentage}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
@@ -67,16 +67,16 @@ export async function POST(req: Request) {
       reviewData.media = mediaIds.map((id: string) => ({ file: id }));
     }
 
-    // 5. Create Review
+    // 5. Create Review in Payload DB
     const newReview = await payload.create({
       collection: 'reviews',
       data: reviewData,
     });
 
-    // 6. n8n Webhook Trigger (Fire-and-forget)
+    // 6. Conditional n8n Webhook Trigger (ONLY runs for VIDEO reviews)
     const n8nWebhookUrl = process.env.N8N_UGC_WEBHOOK_URL;
 
-    if (n8nWebhookUrl) {
+    if (type === 'VIDEO' && n8nWebhookUrl) {
       fetch(n8nWebhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -91,13 +91,14 @@ export async function POST(req: Request) {
           media: newReview.media || [],
           submittedAt: new Date().toISOString(),
         }),
-      }).catch((err) => console.error('n8n Webhook Trigger Error:', err));
+      }).catch((err) => console.error('n8n Video Ads Webhook Error:', err));
     }
 
     return NextResponse.json({
       success: true,
       review: newReview,
       discountCode,
+      discountPercentage: Number(discountPercentage),
     });
   } catch (error: any) {
     console.error('Error creating review:', error);

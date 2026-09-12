@@ -2,80 +2,168 @@ import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-const filename = fileURLToPath(import.meta.url)
-const dirname = path.dirname(filename)
-
-// Load .env.local explicitly
-dotenv.config({ path: path.resolve(dirname, '../.env.local') })
-
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
 import { buildConfig } from 'payload'
-import sharp from 'sharp'
 
 import { Users } from '@/collections/users'
 import { AccessRequests } from '@/collections/AccessRequests'
 import { Waitlist } from '@/collections/waitlist'
 import { Orders } from '@/collections/orders'
-import { Reviews } from '@/collections/reviews' // Single Source of Truth
+import { Reviews } from '@/collections/reviews'
+import { Media } from '@/collections/media'
 
+// PATH SETUP
+const filename = fileURLToPath(import.meta.url)
+const dirname = path.dirname(filename)
+
+// ENVIRONMENT VARIABLES
+dotenv.config({
+  path: path.resolve(dirname, '../.env.local'),
+})
+
+const databaseURI = process.env.DATABASE_URI
+const payloadSecret = process.env.PAYLOAD_SECRET
+const blobToken = process.env.BLOB_READ_WRITE_TOKEN
+
+// ENVIRONMENT VALIDATION
+if (!databaseURI) {
+  console.warn('⚠️ DATABASE_URI is not defined. Falling back to local PostgreSQL.')
+}
+
+if (!payloadSecret) {
+  console.warn('⚠️ PAYLOAD_SECRET is not defined. A development fallback will be used.')
+}
+
+if (!blobToken) {
+  console.warn('⚠️ BLOB_READ_WRITE_TOKEN is not defined. Vercel Blob uploads may not work.')
+}
+
+// PAYLOAD CONFIG
 export default buildConfig({
+  // ADMIN
   admin: {
     user: Users.slug,
   },
 
+  // PLUGINS (FIXED VERCEL BLOB CONFIGURATION)
+  plugins: [
+    vercelBlobStorage({
+      enabled: true,
+      token: process.env.BLOB_READ_WRITE_TOKEN || '',
+      collections: {
+        media: {
+          disableLocalStorage: true,
+          generateFileURL: ({ filename }) => {
+            if (process.env.BLOB_STORE_ID) {
+              return `https://${process.env.BLOB_STORE_ID}.public.blob.vercel-storage.com/${filename}`
+            }
+            // Fallback direct file URL if BLOB_STORE_ID is missing
+            return `/api/media/file/${filename}`
+          },
+        },
+      },
+    }),
+  ],
+
+  // COLLECTIONS
   collections: [
     Users,
     AccessRequests,
     Waitlist,
     Orders,
-    Reviews, // 👈 Imported Collection
-
-    // MEDIA
-    {
-      slug: 'media',
-      admin: {
-        useAsTitle: 'alt',
-        hidden: false,
-        group: 'Content & Assets',
-      },
-      access: { read: () => true },
-      upload: {
-        staticDir: path.resolve(dirname, '../public/media'),
-        mimeTypes: ['image/*', 'video/*'],
-      },
-      fields: [
-        { name: 'alt', type: 'text', required: true },
-        { name: 'caption', type: 'text' },
-      ],
-    },
+    Reviews,
+    Media,
 
     // CATEGORIES
     {
       slug: 'categories',
-      admin: { useAsTitle: 'title', hidden: false, group: 'E-Commerce' },
-      access: { read: () => true },
+      admin: {
+        useAsTitle: 'title',
+        hidden: false,
+        group: 'E-Commerce',
+      },
+      access: {
+        read: () => true,
+      },
       fields: [
-        { name: 'title', type: 'text', required: true, unique: true },
-        { name: 'slug', type: 'text', required: true, unique: true, index: true },
-        { name: 'description', type: 'textarea' },
-        { name: 'heroImage', type: 'upload', relationTo: 'media' },
-        { name: 'active', type: 'checkbox', defaultValue: true },
+        {
+          name: 'title',
+          type: 'text',
+          required: true,
+          unique: true,
+        },
+        {
+          name: 'slug',
+          type: 'text',
+          required: true,
+          unique: true,
+          index: true,
+        },
+        {
+          name: 'description',
+          type: 'textarea',
+        },
+        {
+          name: 'heroImage',
+          type: 'upload',
+          relationTo: 'media',
+        },
+        {
+          name: 'active',
+          type: 'checkbox',
+          defaultValue: true,
+        },
       ],
     },
 
     // PRODUCTS
     {
       slug: 'products',
-      admin: { useAsTitle: 'title', hidden: false, group: 'E-Commerce' },
-      access: { read: () => true },
+      admin: {
+        useAsTitle: 'title',
+        hidden: false,
+        group: 'E-Commerce',
+      },
+      access: {
+        read: () => true,
+      },
       fields: [
-        { name: 'title', type: 'text', required: true },
-        { name: 'slug', type: 'text', required: true, unique: true, index: true },
-        { name: 'description', type: 'richText', required: true },
-        { name: 'msrp', type: 'number', required: true },
-        { name: 'founderPrice', type: 'number', required: true },
-        { name: 'gsm', type: 'number' },
+        {
+          name: 'title',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'slug',
+          type: 'text',
+          required: true,
+          unique: true,
+          index: true,
+        },
+        {
+          name: 'description',
+          type: 'richText',
+          required: true,
+        },
+        {
+          name: 'msrp',
+          type: 'number',
+          required: true,
+          min: 0,
+        },
+        {
+          name: 'founderPrice',
+          type: 'number',
+          required: true,
+          min: 0,
+        },
+        {
+          name: 'gsm',
+          type: 'number',
+          min: 0,
+        },
         {
           name: 'fabric',
           type: 'text',
@@ -235,11 +323,16 @@ export default buildConfig({
     },
   ],
 
+  // GLOBALS
   globals: [
     {
       slug: 'batch-001-settings',
-      admin: { group: 'Settings' },
-      access: { read: () => true },
+      admin: {
+        group: 'Settings',
+      },
+      access: {
+        read: () => true,
+      },
       fields: [
         {
           name: 'founderCap',
@@ -260,18 +353,9 @@ export default buildConfig({
           type: 'select',
           defaultValue: 'FOUNDER_ACCESS',
           options: [
-            {
-              label: 'Locked / Waitlist',
-              value: 'LOCKED',
-            },
-            {
-              label: 'Founder Access Only',
-              value: 'FOUNDER_ACCESS',
-            },
-            {
-              label: 'Public Release',
-              value: 'PUBLIC_RELEASE',
-            },
+            { label: 'Locked / Waitlist', value: 'LOCKED' },
+            { label: 'Founder Access Only', value: 'FOUNDER_ACCESS' },
+            { label: 'Public Release', value: 'PUBLIC_RELEASE' },
           ],
         },
         {
@@ -286,19 +370,25 @@ export default buildConfig({
     },
   ],
 
+  // EDITOR
   editor: lexicalEditor({}),
 
-  secret:
-    process.env.PAYLOAD_SECRET ||
-    'a_very_secret_key_for_kult_origin_2026',
+  // PAYLOAD SECRET
+  secret: payloadSecret || 'a_very_secret_key_for_kult_origin_2026',
 
+  // TYPESCRIPT
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
-db: postgresAdapter({
+
+  // DATABASE CONFIGURATION (WITH FIXED SSL HANDSHAKE)
+  db: postgresAdapter({
     pool: {
-      connectionString: process.env.DATABASE_URI,
+      connectionString:
+        databaseURI ||
+        'postgresql://postgres:1234@localhost:1234/kult-origin',
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     },
-    push: process.env.NODE_ENV !== 'production',
+    push: true,
   }),
 })

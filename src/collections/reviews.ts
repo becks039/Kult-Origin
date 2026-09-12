@@ -17,7 +17,7 @@ export const Reviews: CollectionConfig = {
       name: 'customer',
       type: 'text',
       required: true,
-      admin: { description: 'Customer Email or ID from frontend' },
+      admin: { description: 'Customer Email or User ID' },
     },
     {
       name: 'product',
@@ -80,37 +80,4 @@ export const Reviews: CollectionConfig = {
       admin: { description: 'Track if n8n pushed this UGC video to Meta/TikTok Ads' },
     },
   ],
-  hooks: {
-    afterChange: [
-      async ({ doc, operation, req }) => {
-        // Sirf naya review create hone par trigger hoga
-        if (operation === 'create' && process.env.N8N_UGC_WEBHOOK_URL) {
-          try {
-            // Agar full media object populated nahi hai toh fetch/map karein
-            await fetch(process.env.N8N_UGC_WEBHOOK_URL, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                event: 'REVIEW_CREATED',
-                reviewId: doc.id,
-                customer: doc.customer,
-                product: doc.product,
-                type: doc.type,
-                content: doc.content,
-                status: doc.status,
-                media: doc.media || [],
-                createdAt: doc.createdAt,
-              }),
-            });
-
-            req.payload.logger.info(`[n8n Webhook] Successfully triggered for Review ID: ${doc.id}`);
-          } catch (err) {
-            req.payload.logger.error(`[n8n Webhook Error]: ${err}`);
-          }
-        }
-      },
-    ],
-  },
-};
+}

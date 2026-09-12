@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 
     const trimmedKey = key.trim()
 
-    // 1. Master Keys
+    // 1. Master Keys Check
     const masterKeys = ['ORIGIN50', 'ADMIN123', 'TESTKEY']
     if (masterKeys.includes(trimmedKey.toUpperCase())) {
       return NextResponse.json({
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const payload = await getPayload({ config })
 
     // 2. SEARCH IN ACCESS-REQUESTS FIRST
-    // Using ONLY valid schema enum values: 'SENT', 'USED' (no invalid enum values)
+    // Included 'PENDING', 'SENT', and 'USED' so keys generated without email dispatch still work
     const accessReqResult = await payload.find({
       collection: 'access-requests',
       where: {
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
           },
           {
             status: {
-              in: ['SENT', 'USED'], // Safe enum values only
+              in: ['PENDING', 'SENT', 'USED'],
             },
           },
         ],
@@ -52,12 +52,21 @@ export async function POST(req: Request) {
     if (accessReqResult.docs.length > 0) {
       const matchDoc = accessReqResult.docs[0]
 
-      // Allocation check
-      const batch = await payload.findGlobal({ slug: 'batch-001-settings' })
-      const currentFounderCount = batch.currentFounderCount ?? 0
-      const founderCap = batch.founderCap ?? 50
+      // Safe Global Settings Retrieval
+      let currentFounderCount = 0
+      let founderCap = 50
 
-      // If already USED, still grant access!
+      try {
+        const batch = await payload.findGlobal({ slug: 'batch-001-settings' })
+        if (batch) {
+          currentFounderCount = batch.currentFounderCount ?? 0
+          founderCap = batch.founderCap ?? 50
+        }
+      } catch (globalErr) {
+        console.warn('Global settings fetch warning:', globalErr)
+      }
+
+      // If key is already USED, re-grant access without incrementing founder count
       if (matchDoc.status === 'USED') {
         return NextResponse.json({
           valid: true,
@@ -66,6 +75,7 @@ export async function POST(req: Request) {
         })
       }
 
+      // Check capacity cap
       if (currentFounderCount >= founderCap) {
         return NextResponse.json(
           { valid: false, message: 'Founder 50 allocation is already full.' },
@@ -75,7 +85,7 @@ export async function POST(req: Request) {
 
       const founderNumber = currentFounderCount + 1
 
-      // Mark request as USED
+      // Mark request as USED in DB
       await payload.update({
         collection: 'access-requests',
         id: matchDoc.id,
@@ -86,11 +96,15 @@ export async function POST(req: Request) {
         },
       })
 
-      // Update Global Count
-      await payload.updateGlobal({
-        slug: 'batch-001-settings',
-        data: { currentFounderCount: founderNumber },
-      })
+      // Update Global Count safely
+      try {
+        await payload.updateGlobal({
+          slug: 'batch-001-settings',
+          data: { currentFounderCount: founderNumber },
+        })
+      } catch (updateGlobalErr) {
+        console.warn('Global settings update warning:', updateGlobalErr)
+      }
 
       return NextResponse.json({
         valid: true,
@@ -101,7 +115,7 @@ export async function POST(req: Request) {
       })
     }
 
-    // 3. FALLBACK: SEARCH IN FOUNDER-PROFILES IF MOVED
+    // 3. FALLBACK: SEARCH IN FOUNDER-PROFILES
     const founderProfileResult = await payload.find({
       collection: 'founder-profiles',
       where: {
@@ -122,7 +136,7 @@ export async function POST(req: Request) {
       })
     }
 
-    // 4. IF NOT FOUND IN EITHER
+    // 4. INVALID KEY
     return NextResponse.json(
       { valid: false, message: 'Invalid access key' },
       { status: 401 }

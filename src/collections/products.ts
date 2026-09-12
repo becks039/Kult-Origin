@@ -95,19 +95,19 @@ export const Products: CollectionConfig = {
       ],
       defaultValue: 'AVAILABLE',
     },
+   {
+  name: 'images',
+  type: 'array',
+  required: true,
+  fields: [
     {
-      name: 'images',
-      type: 'array',
+      name: 'image',
+      type: 'upload',
+      relationTo: 'media',
       required: true,
-      fields: [
-        {
-          name: 'image',
-          type: 'upload',
-          relationTo: 'media',
-          required: true,
-        },
-      ],
     },
+  ],
+},
     {
       name: 'totalStock',
       type: 'number',

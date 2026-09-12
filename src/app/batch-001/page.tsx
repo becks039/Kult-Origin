@@ -43,7 +43,7 @@ export default function Batch001Page() {
   const [registerName, setRegisterName] = useState('')
   const [registerEmail, setRegisterEmail] = useState('')
   const [registerBirthDate, setRegisterBirthDate] = useState('')
-  const [registerPhoneNumber, setRegisterPhoneNumber] = useState('') // <--- PHONE NUMBER STATE ADDED
+  const [registerPhoneNumber, setRegisterPhoneNumber] = useState('')
   const [isRequesting, setIsRequesting] = useState(false)
   const [requestSuccess, setRequestSuccess] = useState(false)
   const [requestError, setRequestError] = useState<string | null>(null)
@@ -115,7 +115,7 @@ export default function Batch001Page() {
     } catch (err) {
       console.error('KEY VERIFICATION ERROR:', err)
       setError('AUTHENTICATION FAILED // TRY AGAIN')
-    }  {
+    } finally {
       setIsAuthenticating(false)
     }
   }
@@ -138,7 +138,7 @@ export default function Batch001Page() {
           name: registerName.trim(),
           email: registerEmail.trim(),
           birthDate: registerBirthDate ? registerBirthDate.trim() : null,
-          phoneNumber: registerPhoneNumber ? registerPhoneNumber.trim() : null, // <--- PHONE FORWARDED
+          phoneNumber: registerPhoneNumber ? registerPhoneNumber.trim() : null,
         }),
       })
 
@@ -297,7 +297,6 @@ export default function Batch001Page() {
                   </p>
 
                   <div className="space-y-3">
-                    {/* FULL NAME */}
                     <div className="relative">
                       <input
                         type="text"
@@ -314,7 +313,6 @@ export default function Batch001Page() {
                       <User className="w-4 h-4 text-white/30 absolute right-4 top-1/2 -translate-y-1/2" />
                     </div>
 
-                    {/* EMAIL */}
                     <div className="relative">
                       <input
                         type="email"
@@ -331,7 +329,6 @@ export default function Batch001Page() {
                       <Mail className="w-4 h-4 text-white/30 absolute right-4 top-1/2 -translate-y-1/2" />
                     </div>
 
-                    {/* PHONE NUMBER FIELD */}
                     <div className="relative">
                       <input
                         type="tel"
@@ -348,7 +345,6 @@ export default function Batch001Page() {
                       <Phone className="w-4 h-4 text-white/30 absolute right-4 top-1/2 -translate-y-1/2" />
                     </div>
 
-                    {/* DATE OF BIRTH FIELD */}
                     <div className="relative">
                       <input
                         type="date"
