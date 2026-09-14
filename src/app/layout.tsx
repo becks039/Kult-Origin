@@ -3,6 +3,7 @@
 import React from 'react'
 import { usePathname } from 'next/navigation'
 import { CartProvider } from '@/context/CartContext'
+import VapiResponder from '@/components/VapiResponder'
 import './globals.css'
 
 export default function RootLayout({
@@ -20,12 +21,13 @@ export default function RootLayout({
     return <>{children}</>
   }
 
-  // Render standard HTML wrapper with Global Cart Provider for user-facing routes
+  // Render standard HTML wrapper with Global Cart Provider & Vapi Responder for user-facing routes
   return (
     <html lang="en">
       <body>
         <CartProvider>
           {children}
+          <VapiResponder />
         </CartProvider>
       </body>
     </html>

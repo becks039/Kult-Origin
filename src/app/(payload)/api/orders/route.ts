@@ -2,20 +2,13 @@ import { NextResponse } from 'next/server';
 import { getPayload } from 'payload';
 import config from '@/payload.config';
 
+// 1. POST Handler (New Order Creation)
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    console.log('=================================');
-    console.log('ORDER RECEIVED BY API:');
-    console.log(JSON.stringify(body, null, 2));
-    console.log('=================================');
+    const payload = await getPayload({ config });
 
-    const payload = await getPayload({
-      config,
-    });
-
-    // 1. Fetch valid products from Payload to map or validate fallback IDs
     const existingProducts = await payload.find({
       collection: 'products',
       limit: 10,
@@ -31,10 +24,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Default fallback to the first valid product ID if the payload provides a non-existent/mock ID (like "1")
     const defaultProductId = existingProducts.docs[0].id;
 
-    // 2. Sanitize items array to ensure `product` holds a valid Payload document ID
     const sanitizedItems = Array.isArray(body.items)
       ? body.items.map((item: any) => {
           const isValidId = existingProducts.docs.some(
@@ -43,29 +34,26 @@ export async function POST(req: Request) {
 
           return {
             ...item,
-            // Replace mock ID with real database ID if lookup fails
             product: isValidId ? item.product : defaultProductId,
           };
         })
       : [];
 
+    const normalizedStatus = typeof body.orderStatus === 'string' 
+      ? body.orderStatus.toLowerCase() 
+      : 'pending';
+
     const orderPayload = {
       ...body,
+      orderStatus: normalizedStatus,
       items: sanitizedItems,
     };
 
-    // 3. Create order document in Payload CMS
-    // Setting overrideAccess ensures collection hooks and actions execute smoothly
     const order = await payload.create({
       collection: 'orders',
       data: orderPayload,
       overrideAccess: true,
     });
-
-    console.log('=================================');
-    console.log('ORDER CREATED IN PAYLOAD:');
-    console.log(JSON.stringify(order, null, 2));
-    console.log('=================================');
 
     return NextResponse.json(
       {
@@ -73,25 +61,71 @@ export async function POST(req: Request) {
         message: 'Order successfully created',
         order,
       },
-      {
-        status: 201,
-      }
+      { status: 201 }
     );
   } catch (error: any) {
-    console.error('=================================');
-    console.error('PAYLOAD ORDER CREATION ERROR:');
-    console.error(error);
-    console.error('=================================');
-
     return NextResponse.json(
       {
         success: false,
         message: error?.message || 'Failed to create order',
-        details: error?.data || error?.errors || null,
       },
-      {
-        status: 400,
+      { status: 400 }
+    );
+  }
+}
+
+// 2. PATCH Handler (Fixes "Method Not Allowed" on Bulk Drawer Edit)
+export async function PATCH(req: Request) {
+  try {
+    const payload = await getPayload({ config });
+    const { searchParams } = new URL(req.url);
+
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+
+    // Extract target order IDs from URL query params
+    const targetIds: string[] = [];
+    searchParams.forEach((value, key) => {
+      if (key.includes('[id][in]') || key === 'id') {
+        targetIds.push(value);
       }
+    });
+
+    if (body.ids && Array.isArray(body.ids)) {
+      targetIds.push(...body.ids);
+    } else if (body.id) {
+      targetIds.push(body.id);
+    }
+
+    const uniqueIds = Array.from(new Set(targetIds));
+
+    // Update using Payload Local API
+    const updatedDocs = await Promise.all(
+      uniqueIds.map((id: string) =>
+        payload.update({
+          collection: 'orders',
+          id,
+          data: body,
+          overrideAccess: true,
+        })
+      )
+    );
+
+    return NextResponse.json({
+      docs: updatedDocs,
+      errors: [],
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: error?.message || 'Failed to update order',
+      },
+      { status: 400 }
     );
   }
 }

@@ -261,31 +261,23 @@ export interface Waitlist {
 export interface Order {
   id: number;
   orderNumber: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  shippingAddress: {
-    street: string;
-    city: string;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  orderStatus?: ('pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'PROCESSING' | 'PENDING') | null;
+  paymentStatus?: ('unpaid' | 'paid' | 'pending' | 'PENDING') | null;
+  totalAmount?: number | null;
+  items?:
+    | {
+        product?: (number | null) | Product;
+        quantity?: number | null;
+        price?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  shippingAddress?: {
+    city?: string | null;
+    address?: string | null;
   };
-  user?: (number | null) | User;
-  items: {
-    product: number | Product;
-    quantity: number;
-    unitPrice: number;
-    size?: string | null;
-    id?: string | null;
-  }[];
-  subtotal: number;
-  discount?: number | null;
-  /**
-   * Customer pays shipping to maintain premium perception
-   */
-  shippingFee: number;
-  totalAmount: number;
-  isFounderOrder?: boolean | null;
-  paymentStatus?: ('PENDING' | 'PAID' | 'FAILED') | null;
-  orderStatus?: ('PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -609,30 +601,23 @@ export interface OrdersSelect<T extends boolean = true> {
   orderNumber?: T;
   customerName?: T;
   customerEmail?: T;
-  customerPhone?: T;
-  shippingAddress?:
-    | T
-    | {
-        street?: T;
-        city?: T;
-      };
-  user?: T;
+  orderStatus?: T;
+  paymentStatus?: T;
+  totalAmount?: T;
   items?:
     | T
     | {
         product?: T;
         quantity?: T;
-        unitPrice?: T;
-        size?: T;
+        price?: T;
         id?: T;
       };
-  subtotal?: T;
-  discount?: T;
-  shippingFee?: T;
-  totalAmount?: T;
-  isFounderOrder?: T;
-  paymentStatus?: T;
-  orderStatus?: T;
+  shippingAddress?:
+    | T
+    | {
+        city?: T;
+        address?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
