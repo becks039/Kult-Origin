@@ -66,15 +66,52 @@ export default function ShopPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Helper function to resolve dynamic/relative media URLs from Payload
+  // ==========================================================
+  // PAYLOAD IMAGE URL HELPER
+  // ==========================================================
+
+  /**
+   * Payload ProductMedia returns image URLs such as:
+   *
+   * /media/products/example.jpg
+   *
+   * Because Payload and this Next.js frontend are running
+   * under the same application, we can use that URL directly.
+   */
   const getImageUrl = (imageObj: any): string | null => {
     if (!imageObj) return null;
-    const url = typeof imageObj === 'object' ? imageObj?.url : imageObj;
-    if (!url || typeof url !== 'string') return null;
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || '';
-    return `${serverUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+
+    // Payload depth=2 normally gives:
+    // {
+    //   id: "...",
+    //   url: "/media/products/example.jpg",
+    //   filename: "example.jpg"
+    // }
+    const url =
+      typeof imageObj === 'object'
+        ? imageObj?.url
+        : imageObj;
+
+    if (!url || typeof url !== 'string') {
+      return null;
+    }
+
+    // Already an absolute URL
+    if (
+      url.startsWith('http://') ||
+      url.startsWith('https://')
+    ) {
+      return url;
+    }
+
+    // Payload relative URL
+    if (url.startsWith('/')) {
+      return url;
+    }
+
+    // Safety fallback if Payload ever returns:
+    // media/products/example.jpg
+    return `/${url}`;
   };
 
   // ==========================================================
@@ -86,48 +123,180 @@ export default function ShopPage() {
       try {
         setLoading(true);
 
-        const res = await fetch('/api/products?limit=100&depth=2');
-        if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
-        
+        const res = await fetch(
+          '/api/products?limit=100&depth=2',
+          {
+            cache: 'no-store',
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error(
+            `Failed to fetch products: ${res.status} ${res.statusText}`
+          );
+        }
+
         const data = await res.json();
+
+        console.log('PAYLOAD PRODUCTS RESPONSE:', data);
 
         if (data && Array.isArray(data.docs)) {
           const mappedProducts = data.docs.map((item: any) => {
-            // PAYLOAD IMAGE HANDLING (RESOLVED)
-            const payloadImage = getImageUrl(item.images?.[0]?.image);
-            const oldImage = getImageUrl(item.image);
-            const productImage = payloadImage || oldImage || DEFAULT_FALLBACK_IMAGE;
+            // ==================================================
+            // PAYLOAD PRODUCT IMAGE
+            // ==================================================
+            //
+            // Products collection:
+            //
+            // images[]
+            //    └── image -> product-media
+            //
+            // With depth=2:
+            //
+            // images: [
+            //   {
+            //     image: {
+            //       id: "...",
+            //       url: "/media/products/example.jpg"
+            //     }
+            //   }
+            // ]
 
-            // Category Resolution
+            const firstImageRelation = item?.images?.[0];
+
+            const payloadImage = getImageUrl(
+              firstImageRelation?.image ??
+                firstImageRelation
+            );
+
+            // Legacy single image support
+            const oldImage = getImageUrl(item?.image);
+
+            // Final product image
+            const productImage =
+              payloadImage ||
+              oldImage ||
+              DEFAULT_FALLBACK_IMAGE;
+
+            // ==================================================
+            // DEBUG IMAGE INFORMATION
+            // ==================================================
+
+            console.log('--------------------------------');
+            console.log('PRODUCT:', item?.title);
+            console.log(
+              'PRODUCT IMAGES:',
+              item?.images
+            );
+            console.log(
+              'FIRST IMAGE RELATION:',
+              firstImageRelation
+            );
+            console.log(
+              'PAYLOAD IMAGE:',
+              payloadImage
+            );
+            console.log(
+              'FINAL PRODUCT IMAGE:',
+              productImage
+            );
+
+            // ==================================================
+            // CATEGORY RESOLUTION
+            // ==================================================
+
             const catRaw =
-              item.category?.title ||
-              item.category?.slug ||
-              (typeof item.category === 'string' ? item.category : 'ALL');
+              item?.category?.title ||
+              item?.category?.slug ||
+              (typeof item?.category === 'string'
+                ? item.category
+                : 'ALL');
+
+            // ==================================================
+            // RETURN FORMATTED PRODUCT
+            // ==================================================
 
             return {
               id: String(item.id),
-              slug: item.slug || item.id,
-              title: item.title || item.name || 'UNTITLED PRODUCT',
-              msrp: item.msrp
-                ? `PKR ${Number(item.msrp).toLocaleString()}`
-                : 'PKR 0',
-              founderPrice: item.founderPrice
-                ? `PKR ${Number(item.founderPrice).toLocaleString()}`
-                : `PKR ${Number(item.price || 0).toLocaleString()}`,
-              rawPrice: item.founderPrice || item.price || 0,
-              gsm: item.gsm ? `${item.gsm} GSM` : 'N/A',
-              fabric: item.fabric || 'PREMIUM COTTON',
-              category: String(catRaw).toUpperCase(),
-              status: item.status || 'IN STOCK',
-              specs: item.specs || item.printType || 'TACTICAL FIT // LIMITED EDITION',
+
+              slug:
+                item.slug ||
+                item.id,
+
+              title:
+                item.title ||
+                item.name ||
+                'UNTITLED PRODUCT',
+
+              msrp:
+                item.msrp !== undefined &&
+                item.msrp !== null
+                  ? `PKR ${Number(
+                      item.msrp
+                    ).toLocaleString()}`
+                  : 'PKR 0',
+
+              founderPrice:
+                item.founderPrice !== undefined &&
+                item.founderPrice !== null
+                  ? `PKR ${Number(
+                      item.founderPrice
+                    ).toLocaleString()}`
+                  : `PKR ${Number(
+                      item.price || 0
+                    ).toLocaleString()}`,
+
+              rawPrice:
+                item.founderPrice ||
+                item.price ||
+                0,
+
+              gsm:
+                item.gsm
+                  ? `${item.gsm} GSM`
+                  : 'N/A',
+
+              fabric:
+                item.fabric ||
+                'PREMIUM COTTON',
+
+              category:
+                String(catRaw).toUpperCase(),
+
+              status:
+                item.status ||
+                'IN STOCK',
+
+              specs:
+                item.specs ||
+                item.printType ||
+                'TACTICAL FIT // LIMITED EDITION',
+
               image: productImage,
             };
           });
 
+          console.log(
+            'MAPPED PRODUCTS:',
+            mappedProducts
+          );
+
           setProducts(mappedProducts);
+        } else {
+          console.warn(
+            'Payload returned no product docs:',
+            data
+          );
+
+          setProducts([]);
         }
       } catch (error) {
-        console.error('Error fetching products from Payload CMS:', error);
+        console.error(
+          'Error fetching products from Payload CMS:',
+          error
+        );
+
+        setProducts([]);
       } finally {
         setLoading(false);
       }
@@ -142,7 +311,9 @@ export default function ShopPage() {
 
   useEffect(() => {
     const accessGranted =
-      localStorage.getItem('kult_batch001_access') === 'true';
+      localStorage.getItem(
+        'kult_batch001_access'
+      ) === 'true';
 
     if (!accessGranted) {
       router.replace('/batch-001');
@@ -165,12 +336,26 @@ export default function ShopPage() {
       setCartCount(getActiveCartCount());
     };
 
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('cart-updated', handleStorageChange);
+    window.addEventListener(
+      'storage',
+      handleStorageChange
+    );
+
+    window.addEventListener(
+      'cart-updated',
+      handleStorageChange
+    );
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('cart-updated', handleStorageChange);
+      window.removeEventListener(
+        'storage',
+        handleStorageChange
+      );
+
+      window.removeEventListener(
+        'cart-updated',
+        handleStorageChange
+      );
     };
   }, [hasAccess]);
 
@@ -185,20 +370,26 @@ export default function ShopPage() {
       localStorage.removeItem(activeCartKey);
     }
 
-    Object.keys(localStorage).forEach((key) => {
-      if (
-        key.startsWith('kult_cart') ||
-        key.includes('cart') ||
-        key.startsWith('kult_batch001') ||
-        key.startsWith('kult_vault') ||
-        key.startsWith('kult_founder')
-      ) {
-        localStorage.removeItem(key);
+    Object.keys(localStorage).forEach(
+      (key) => {
+        if (
+          key.startsWith('kult_cart') ||
+          key.includes('cart') ||
+          key.startsWith('kult_batch001') ||
+          key.startsWith('kult_vault') ||
+          key.startsWith('kult_founder')
+        ) {
+          localStorage.removeItem(key);
+        }
       }
-    });
+    );
 
     setCartCount(0);
-    window.dispatchEvent(new Event('cart-updated'));
+
+    window.dispatchEvent(
+      new Event('cart-updated')
+    );
+
     router.replace('/batch-001');
   };
 
@@ -210,7 +401,11 @@ export default function ShopPage() {
     if (!hasAccess) return;
 
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % HERO_IMAGES.length);
+      setCurrentSlide(
+        (prev) =>
+          (prev + 1) %
+          HERO_IMAGES.length
+      );
     }, 5000);
 
     return () => clearInterval(timer);
@@ -221,21 +416,36 @@ export default function ShopPage() {
   // ==========================================================
 
   const handleAddToCart = (product: any) => {
-    const { items: existingCart } = getCartData();
+    const {
+      items: existingCart,
+    } = getCartData();
 
     const numericPrice =
       product.rawPrice ||
-      parseInt(String(product.founderPrice).replace(/[^0-9]/g, ''), 10) ||
+      parseInt(
+        String(
+          product.founderPrice
+        ).replace(/[^0-9]/g, ''),
+        10
+      ) ||
       0;
 
-    const existingIndex = existingCart.findIndex(
-      (item: any) => String(item.id) === String(product.id)
-    );
+    const existingIndex =
+      existingCart.findIndex(
+        (item: any) =>
+          String(item.id) ===
+          String(product.id)
+      );
 
     if (existingIndex > -1) {
       existingCart[existingIndex] = {
-        ...existingCart[existingIndex],
-        quantity: (existingCart[existingIndex].quantity || 1) + 1,
+        ...existingCart[
+          existingIndex
+        ],
+        quantity:
+          (existingCart[
+            existingIndex
+          ].quantity || 1) + 1,
       };
     } else {
       existingCart.push({
@@ -251,10 +461,17 @@ export default function ShopPage() {
     }
 
     saveCartData(existingCart);
-    setCartCount(getActiveCartCount());
-    window.dispatchEvent(new Event('cart-updated'));
+
+    setCartCount(
+      getActiveCartCount()
+    );
+
+    window.dispatchEvent(
+      new Event('cart-updated')
+    );
 
     setAddedId(product.id);
+
     setTimeout(() => {
       setAddedId(null);
     }, 1500);
@@ -276,15 +493,22 @@ export default function ShopPage() {
   const filteredProducts =
     selectedCategory === 'ALL'
       ? products
-      : products.filter((item) => item.category === selectedCategory);
+      : products.filter(
+          (item) =>
+            item.category ===
+            selectedCategory
+        );
 
   // ==========================================================
   // STATUS BADGE
   // ==========================================================
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (
+    status: string
+  ) => {
     switch (status) {
       case 'IN STOCK':
+      case 'AVAILABLE':
         return (
           <span className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md uppercase tracking-widest font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-500/40 backdrop-blur-md">
             <CheckCircle2 className="w-3 h-3" />
@@ -310,20 +534,53 @@ export default function ShopPage() {
     }
   };
 
+  // ==========================================================
+  // ACCESS LOADING SCREEN
+  // ==========================================================
+
   if (!hasAccess) {
-    return <div className="min-h-screen bg-[#0A0B0D]" />;
+    return (
+      <div className="min-h-screen bg-[#0A0B0D]" />
+    );
   }
+
+  // ==========================================================
+  // PAGE
+  // ==========================================================
 
   return (
     <div className="relative min-h-screen bg-[#0A0B0D] text-[#E8E2D6] font-mono selection:bg-[#D4AF37] selection:text-black overflow-x-hidden">
-      {/* TOAST NOTIFICATION */}
+
+      {/* ======================================================
+          TOAST NOTIFICATION
+      ====================================================== */}
+
       <AnimatePresence>
         {toastNotification?.show && (
           <motion.div
-            initial={{ opacity: 0, y: -20, x: '-50%', scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, x: '-50%', scale: 1 }}
-            exit={{ opacity: 0, y: -20, x: '-50%', scale: 0.9 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            initial={{
+              opacity: 0,
+              y: -20,
+              x: '-50%',
+              scale: 0.9,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+              x: '-50%',
+              scale: 1,
+            }}
+            exit={{
+              opacity: 0,
+              y: -20,
+              x: '-50%',
+              scale: 0.9,
+            }}
+            transition={{
+              type: 'spring',
+              stiffness: 400,
+              damping: 25,
+            }}
             className="fixed top-20 left-1/2 z-[100] w-[calc(100%-2rem)] max-w-sm bg-[#12141B]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-xl flex items-start gap-3"
           >
             <div className="p-2.5 bg-[#D4AF37]/10 border border-[#D4AF37]/40 rounded-xl text-[#D4AF37] shrink-0">
@@ -347,7 +604,9 @@ export default function ShopPage() {
             </div>
 
             <button
-              onClick={() => setToastNotification(null)}
+              onClick={() =>
+                setToastNotification(null)
+              }
               className="text-[#E8E2D6]/40 hover:text-[#D4AF37] transition-colors p-1"
             >
               <X className="w-4 h-4" />
@@ -356,15 +615,29 @@ export default function ShopPage() {
         )}
       </AnimatePresence>
 
-      {/* BACKGROUND HERO SLIDER */}
+      {/* ======================================================
+          BACKGROUND HERO SLIDER
+      ====================================================== */}
+
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlide}
-            initial={{ opacity: 0, scale: 1 }}
-            animate={{ opacity: 0.65, scale: 1.05 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.5, ease: 'easeInOut' }}
+            initial={{
+              opacity: 0,
+              scale: 1,
+            }}
+            animate={{
+              opacity: 0.65,
+              scale: 1.05,
+            }}
+            exit={{
+              opacity: 0,
+            }}
+            transition={{
+              duration: 1.5,
+              ease: 'easeInOut',
+            }}
             className="absolute inset-0 bg-cover bg-center"
             style={{
               backgroundImage: `url(${HERO_IMAGES[currentSlide]})`,
@@ -373,37 +646,55 @@ export default function ShopPage() {
         </AnimatePresence>
 
         <div className="absolute inset-0 bg-gradient-to-b from-[#0A0B0D]/80 via-[#0A0B0D]/60 to-[#0A0B0D]/95" />
+
         <div className="absolute inset-0 bg-[radial-gradient(#D4AF37_1px,transparent_1px)] [background-size:32px_32px] opacity-10" />
       </div>
 
       <div className="relative z-10">
-        {/* NAVIGATION */}
+
+        {/* ====================================================
+            NAVIGATION
+        ==================================================== */}
+
         <nav className="w-full border-b border-[#2D323E]/80 bg-[#0A0B0D]/90 backdrop-blur-md px-6 py-4 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+
             <Link
               href="/"
               className="flex items-center gap-2.5 px-5 py-2 rounded-full border border-[#2D323E] bg-[#12141B]/90 hover:border-[#3A3F44] transition-all duration-200 group cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4 text-[#E8E2D6] group-hover:text-[#D4AF37] group-hover:-translate-x-1 transition-all" />
+
               <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8E2D6] group-hover:text-[#D4AF37] transition-colors">
                 HOME
               </span>
             </Link>
 
             <div className="hidden sm:flex items-center gap-2 text-[10px] uppercase tracking-widest text-[#E8E2D6]/50">
-              <Link href="/" className="hover:text-[#D4AF37] transition-colors">
+              <Link
+                href="/"
+                className="hover:text-[#D4AF37] transition-colors"
+              >
                 KULT
               </Link>
+
               <ChevronRight className="w-3 h-3 text-[#D4AF37]" />
-              <span className="text-[#D4AF37] font-bold">CATALOGUE</span>
+
+              <span className="text-[#D4AF37] font-bold">
+                CATALOGUE
+              </span>
             </div>
 
             <div className="flex items-center gap-2">
+
               <button
-                onClick={handleRevokeAccess}
+                onClick={
+                  handleRevokeAccess
+                }
                 className="flex items-center gap-2 px-3 sm:px-5 py-2 rounded-full border border-red-500/30 bg-[#12141B]/90 hover:border-red-500/70 hover:text-red-400 transition-all duration-200 group cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
+
                 <span className="hidden sm:inline text-xs font-bold uppercase tracking-[0.2em]">
                   EXIT VAULT
                 </span>
@@ -414,6 +705,7 @@ export default function ShopPage() {
                 className="relative flex items-center gap-2.5 px-3 sm:px-5 py-2 rounded-full border border-[#2D323E] bg-[#12141B]/90 hover:border-[#2D323E] transition-all duration-200 group cursor-pointer"
               >
                 <div className="relative">
+
                   <ShoppingCart className="w-4 h-4 text-[#E8E2D6] group-hover:text-[#D4AF37] transition-colors" />
 
                   {cartCount > 0 && (
@@ -421,22 +713,31 @@ export default function ShopPage() {
                       {cartCount}
                     </span>
                   )}
+
                 </div>
 
                 <span className="hidden sm:inline text-xs font-bold uppercase tracking-[0.2em] text-[#E8E2D6] group-hover:text-[#D4AF37] transition-colors">
                   CART
                 </span>
               </Link>
+
             </div>
           </div>
         </nav>
 
-        {/* HEADER */}
+        {/* ====================================================
+            HEADER
+        ==================================================== */}
+
         <header className="w-full border-b border-[#2D323E]/80 bg-[#0A0B0D]/60 backdrop-blur-md px-6 py-8">
           <div className="max-w-7xl mx-auto space-y-6">
+
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+
               <div className="space-y-3">
+
                 <div className="flex flex-wrap items-center gap-3">
+
                   <span className="inline-flex items-center gap-1.5 text-[9px] text-[#D4AF37] border border-[#D4AF37]/60 bg-[#0A0B0D]/90 px-3 py-1 rounded-full uppercase tracking-[0.2em] font-bold shadow-[0_0_10px_rgba(212,175,55,0.2)]">
                     <Sparkles className="w-3 h-3 text-[#D4AF37]" />
                     PUBLIC RELEASE // BATCH 001
@@ -445,185 +746,312 @@ export default function ShopPage() {
                   <span className="text-[10px] text-[#E8E2D6]/70 tracking-widest uppercase font-semibold">
                     {products.length} ACTIVE UNITS
                   </span>
+
                 </div>
 
                 <h1 className="text-3xl sm:text-5xl font-black uppercase tracking-tight text-[#E8E2D6] drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)]">
                   ARCHITECTURAL HARDWARE
                 </h1>
+
               </div>
 
               <p className="text-xs text-[#E8E2D6]/80 uppercase tracking-widest max-w-sm leading-relaxed border-l-2 border-[#D4AF37] pl-4 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                 HEAVYWEIGHT COMPRESSION & STRUCTURAL ARMOR CRAFTED FOR RESISTANCE AND UNYIELDING DURABILITY.
               </p>
+
             </div>
 
             {/* CATEGORY FILTERS */}
-            <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-[#2D323E]/60">
-              <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map((cat) => {
-                  const isActive = selectedCategory === cat;
 
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-xl border border-[#2D323E] bg-[#12141B]/80 transition-colors cursor-pointer ${
-                        isActive
-                          ? 'text-[#D4AF37] border-[#D4AF37]/50'
-                          : 'text-[#E8E2D6]/60 hover:text-[#E8E2D6]'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  );
-                })}
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-[#2D323E]/60">
+
+              <div className="flex flex-wrap gap-2">
+
+                {CATEGORIES.map(
+                  (cat) => {
+                    const isActive =
+                      selectedCategory ===
+                      cat;
+
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() =>
+                          setSelectedCategory(
+                            cat
+                          )
+                        }
+                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-xl border border-[#2D323E] bg-[#12141B]/80 transition-colors cursor-pointer ${
+                          isActive
+                            ? 'text-[#D4AF37] border-[#D4AF37]/50'
+                            : 'text-[#E8E2D6]/60 hover:text-[#E8E2D6]'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  }
+                )}
+
               </div>
 
               {/* SLIDER DOTS */}
+
               <div className="flex items-center gap-2">
-                {HERO_IMAGES.map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setCurrentSlide(idx)}
-                    className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
-                      currentSlide === idx
-                        ? 'w-6 bg-[#D4AF37]'
-                        : 'w-2 bg-[#2D323E] hover:bg-[#D4AF37]/50'
-                    }`}
-                  />
-                ))}
+
+                {HERO_IMAGES.map(
+                  (_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() =>
+                        setCurrentSlide(
+                          idx
+                        )
+                      }
+                      className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                        currentSlide ===
+                        idx
+                          ? 'w-6 bg-[#D4AF37]'
+                          : 'w-2 bg-[#2D323E] hover:bg-[#D4AF37]/50'
+                      }`}
+                    />
+                  )
+                )}
+
               </div>
             </div>
           </div>
         </header>
 
-        {/* PRODUCT GRID */}
+        {/* ====================================================
+            PRODUCT GRID
+        ==================================================== */}
+
         <main className="max-w-7xl mx-auto px-6 py-10">
+
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
+
               <Loader2 className="w-8 h-8 text-[#D4AF37] animate-spin" />
+
               <p className="text-xs text-[#E8E2D6]/60 uppercase tracking-widest">
                 FETCHING TACTICAL ARCHIVES...
               </p>
+
             </div>
+          ) : filteredProducts.length === 0 ? (
+
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+
+              <ShoppingBag className="w-10 h-10 text-[#D4AF37]" />
+
+              <p className="text-xs text-[#E8E2D6]/60 uppercase tracking-widest">
+                NO PRODUCTS FOUND
+              </p>
+
+            </div>
+
           ) : (
+
             <motion.div
               layout
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
             >
+
               <AnimatePresence>
-                {filteredProducts.map((product) => (
-                  <motion.div
-                    layout
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.3 }}
-                    key={product.id}
-                    className="bg-[#12141B]/90 backdrop-blur-md border border-[#2D323E] p-6 flex flex-col justify-between space-y-6 hover:border-[#D4AF37] transition-all duration-300 group rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.7)] hover:shadow-[0_15px_40px_rgba(212,175,55,0.18)]"
-                  >
-                    <div className="space-y-4">
-                      {/* PRODUCT IMAGE */}
-                      <div className="h-72 bg-[#0A0B0D]/95 border border-[#2D323E] rounded-xl relative overflow-hidden group-hover:border-[#D4AF37]/40 transition-colors">
-                        <img
-                          src={product.image}
-                          alt={product.title}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = DEFAULT_FALLBACK_IMAGE;
-                          }}
-                          className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100"
-                        />
 
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#0A0B0D] via-transparent to-black/30 opacity-70" />
+                {filteredProducts.map(
+                  (product) => (
 
-                        <span className="absolute top-3 left-3 text-[10px] bg-[#2D323E]/90 backdrop-blur-md text-[#E8E2D6] px-3 py-1 rounded-md uppercase tracking-widest font-bold border border-[#3A3F44]">
-                          {product.gsm}
-                        </span>
+                    <motion.div
+                      layout
+                      initial={{
+                        opacity: 0,
+                        y: 20,
+                      }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                      }}
+                      exit={{
+                        opacity: 0,
+                        scale: 0.95,
+                      }}
+                      transition={{
+                        duration: 0.3,
+                      }}
+                      key={product.id}
+                      className="bg-[#12141B]/90 backdrop-blur-md border border-[#2D323E] p-6 flex flex-col justify-between space-y-6 hover:border-[#D4AF37] transition-all duration-300 group rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.7)] hover:shadow-[0_15px_40px_rgba(212,175,55,0.18)]"
+                    >
 
-                        <div className="absolute top-3 right-3">
-                          {getStatusBadge(product.status)}
+                      <div className="space-y-4">
+
+                        {/* PRODUCT IMAGE */}
+
+                        <div className="h-72 bg-[#0A0B0D]/95 border border-[#2D323E] rounded-xl relative overflow-hidden group-hover:border-[#D4AF37]/40 transition-colors">
+
+                          <img
+                            src={
+                              product.image ||
+                              DEFAULT_FALLBACK_IMAGE
+                            }
+                            alt={product.title}
+                            onError={(e) => {
+                              const img =
+                                e.currentTarget;
+
+                              // Prevent infinite
+                              // fallback loop
+                              if (
+                                img.src !==
+                                DEFAULT_FALLBACK_IMAGE
+                              ) {
+                                img.src =
+                                  DEFAULT_FALLBACK_IMAGE;
+                              }
+                            }}
+                            className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100"
+                          />
+
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#0A0B0D] via-transparent to-black/30 opacity-70" />
+
+                          <span className="absolute top-3 left-3 text-[10px] bg-[#2D323E]/90 backdrop-blur-md text-[#E8E2D6] px-3 py-1 rounded-md uppercase tracking-widest font-bold border border-[#3A3F44]">
+                            {product.gsm}
+                          </span>
+
+                          <div className="absolute top-3 right-3">
+                            {getStatusBadge(
+                              product.status
+                            )}
+                          </div>
+
+                          <span className="absolute bottom-3 left-3 text-[9px] text-[#E8E2D6]/60 font-bold uppercase tracking-widest bg-black/60 px-2.5 py-1 rounded border border-white/10 backdrop-blur-md">
+                            [ {product.id} ]
+                          </span>
+
                         </div>
 
-                        <span className="absolute bottom-3 left-3 text-[9px] text-[#E8E2D6]/60 font-bold uppercase tracking-widest bg-black/60 px-2.5 py-1 rounded border border-white/10 backdrop-blur-md">
-                          [ {product.id} ]
-                        </span>
-                      </div>
+                        {/* PRODUCT INFO */}
 
-                      {/* PRODUCT INFO */}
-                      <div className="space-y-2">
-                        <h3 className="font-bold text-sm uppercase tracking-wider text-[#E8E2D6] group-hover:text-[#D4AF37] transition-colors leading-snug">
-                          {product.title}
-                        </h3>
+                        <div className="space-y-2">
 
-                        <p className="text-[10px] text-[#D4AF37] font-semibold uppercase tracking-widest">
-                          {product.specs}
-                        </p>
+                          <h3 className="font-bold text-sm uppercase tracking-wider text-[#E8E2D6] group-hover:text-[#D4AF37] transition-colors leading-snug">
+                            {product.title}
+                          </h3>
 
-                        <p className="text-[11px] text-[#E8E2D6]/50 uppercase tracking-widest">
-                          FABRIC: {product.fabric}
-                        </p>
-                      </div>
-                    </div>
+                          <p className="text-[10px] text-[#D4AF37] font-semibold uppercase tracking-widest">
+                            {product.specs}
+                          </p>
 
-                    {/* PRICING + ACTIONS */}
-                    <div className="pt-4 border-t border-[#2D323E] space-y-3">
-                      <div className="flex justify-between items-baseline bg-[#0A0B0D]/90 p-3 rounded-xl border border-[#2D323E]">
-                        <div>
-                          <span className="text-[9px] text-[#E8E2D6]/40 block uppercase tracking-widest font-bold">
-                            RETAIL MSRP
-                          </span>
-                          <span className="text-base font-black text-[#E8E2D6]">
-                            {product.msrp}
-                          </span>
+                          <p className="text-[11px] text-[#E8E2D6]/50 uppercase tracking-widest">
+                            FABRIC: {product.fabric}
+                          </p>
+
                         </div>
 
-                        <div className="text-right">
-                          <span className="text-[9px] text-[#D4AF37] block font-bold uppercase tracking-widest">
-                            FOUNDER TIER
-                          </span>
-                          <span className="text-xs font-bold text-[#D4AF37]">
-                            {product.founderPrice}
-                          </span>
-                        </div>
                       </div>
 
-                      {/* SECURE ALLOCATION */}
-                      <button
-                        onClick={() => handleAddToCart(product)}
-                        className={`w-full py-3.5 font-black text-xs uppercase tracking-[0.25em] transition-all cursor-pointer rounded-xl flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(212,175,55,0.25)] ${
-                          addedId === product.id
-                            ? 'bg-emerald-500 text-black shadow-emerald-500/30'
-                            : 'bg-[#D4AF37] hover:bg-[#b8952b] text-black hover:shadow-[0_4px_25px_rgba(212,175,55,0.4)]'
-                        }`}
-                      >
-                        {addedId === product.id ? (
-                          <>
-                            <Check className="w-4 h-4" />
-                            <span>Secure Allocation</span>
-                          </>
-                        ) : (
-                          <>
-                            <ShoppingBag className="w-4 h-4" />
-                            <span>SECURE ALLOCATION</span>
-                            <ArrowUpRight className="w-4 h-4" />
-                          </>
-                        )}
-                      </button>
+                      {/* PRICING + ACTIONS */}
 
-                      {/* ABOUT PRODUCT */}
-                      <Link
-                        href={`/shop/${product.slug || product.id}`}
-                        className="w-full py-3 font-bold text-xs uppercase tracking-[0.2em] transition-all rounded-xl border border-[#2D323E] bg-[#0A0B0D]/80 hover:border-[#D4AF37]/60 hover:text-[#D4AF37] text-[#E8E2D6]/80 flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <span>ABOUT PRODUCT</span>
-                        <ChevronRight className="w-4 h-4 text-[#D4AF37]" />
-                      </Link>
-                    </div>
-                  </motion.div>
-                ))}
+                      <div className="pt-4 border-t border-[#2D323E] space-y-3">
+
+                        <div className="flex justify-between items-baseline bg-[#0A0B0D]/90 p-3 rounded-xl border border-[#2D323E]">
+
+                          <div>
+
+                            <span className="text-[9px] text-[#E8E2D6]/40 block uppercase tracking-widest font-bold">
+                              RETAIL MSRP
+                            </span>
+
+                            <span className="text-base font-black text-[#E8E2D6]">
+                              {product.msrp}
+                            </span>
+
+                          </div>
+
+                          <div className="text-right">
+
+                            <span className="text-[9px] text-[#D4AF37] block font-bold uppercase tracking-widest">
+                              FOUNDER TIER
+                            </span>
+
+                            <span className="text-xs font-bold text-[#D4AF37]">
+                              {product.founderPrice}
+                            </span>
+
+                          </div>
+
+                        </div>
+
+                        {/* SECURE ALLOCATION */}
+
+                        <button
+                          onClick={() =>
+                            handleAddToCart(
+                              product
+                            )
+                          }
+                          className={`w-full py-3.5 font-black text-xs uppercase tracking-[0.25em] transition-all cursor-pointer rounded-xl flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(212,175,55,0.25)] ${
+                            addedId ===
+                            product.id
+                              ? 'bg-emerald-500 text-black shadow-emerald-500/30'
+                              : 'bg-[#D4AF37] hover:bg-[#b8952b] text-black hover:shadow-[0_4px_25px_rgba(212,175,55,0.4)]'
+                          }`}
+                        >
+
+                          {addedId ===
+                          product.id ? (
+                            <>
+                              <Check className="w-4 h-4" />
+
+                              <span>
+                                Secure Allocation
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <ShoppingBag className="w-4 h-4" />
+
+                              <span>
+                                SECURE ALLOCATION
+                              </span>
+
+                              <ArrowUpRight className="w-4 h-4" />
+                            </>
+                          )}
+
+                        </button>
+
+                        {/* ABOUT PRODUCT */}
+
+                        <Link
+                          href={`/shop/${
+                            product.slug ||
+                            product.id
+                          }`}
+                          className="w-full py-3 font-bold text-xs uppercase tracking-[0.2em] transition-all rounded-xl border border-[#2D323E] bg-[#0A0B0D]/80 hover:border-[#D4AF37]/60 hover:text-[#D4AF37] text-[#E8E2D6]/80 flex items-center justify-center gap-2 cursor-pointer"
+                        >
+
+                          <span>
+                            ABOUT PRODUCT
+                          </span>
+
+                          <ChevronRight className="w-4 h-4 text-[#D4AF37]" />
+
+                        </Link>
+
+                      </div>
+
+                    </motion.div>
+
+                  )
+                )}
+
               </AnimatePresence>
+
             </motion.div>
           )}
+
         </main>
       </div>
     </div>

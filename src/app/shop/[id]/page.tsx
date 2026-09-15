@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, use } from 'react';
@@ -33,19 +32,209 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+/* ============================================================
+   HERO IMAGES
+   These are ONLY background/visual images.
+   They are NOT used for product images.
+============================================================ */
+
 const HERO_IMAGES = [
   'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=1920&auto=format&fit=crop',
   'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=1920&auto=format&fit=crop',
   'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?q=80&w=1920&auto=format&fit=crop',
 ];
 
-export default function SingleProductPage({ params }: PageProps) {
+/* ============================================================
+   PRODUCT FALLBACK IMAGE
+
+   Used ONLY if Payload has no image.
+============================================================ */
+
+const PLACEHOLDER_IMAGE =
+  'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?q=80&w=1200&auto=format&fit=crop';
+
+/* ============================================================
+   PAYLOAD SERVER URL
+============================================================ */
+
+const PAYLOAD_BASE_URL = (
+  process.env.NEXT_PUBLIC_PAYLOAD_URL ||
+  process.env.NEXT_PUBLIC_SERVER_URL ||
+  ''
+).replace(/\/$/, '');
+
+/* ============================================================
+   PAYLOAD IMAGE URL HELPER
+============================================================ */
+
+const getImageUrl = (imageObj: any): string | null => {
+  if (!imageObj) {
+    return null;
+  }
+
+  let url: unknown = null;
+
+  /* Direct string */
+  if (typeof imageObj === 'string') {
+    url = imageObj;
+  }
+
+  /* Object */
+  else if (typeof imageObj === 'object') {
+    if (typeof imageObj.url === 'string') {
+      url = imageObj.url;
+    } else if (
+      imageObj.image &&
+      typeof imageObj.image === 'object' &&
+      typeof imageObj.image.url === 'string'
+    ) {
+      url = imageObj.image.url;
+    } else if (typeof imageObj.image === 'string') {
+      url = imageObj.image;
+    } else if (imageObj.image?.url) {
+      url = imageObj.image.url;
+    }
+  }
+
+  if (!url || typeof url !== 'string') {
+    return null;
+  }
+
+  const cleanUrl = url.trim();
+
+  if (!cleanUrl) {
+    return null;
+  }
+
+  /* Already absolute URL */
+  if (
+    cleanUrl.startsWith('http://') ||
+    cleanUrl.startsWith('https://') ||
+    cleanUrl.startsWith('//')
+  ) {
+    return cleanUrl;
+  }
+
+  /* Relative Payload media URL */
+  const normalizedPath = cleanUrl.startsWith('/')
+    ? cleanUrl
+    : `/${cleanUrl}`;
+
+  if (PAYLOAD_BASE_URL) {
+    return `${PAYLOAD_BASE_URL}${normalizedPath}`;
+  }
+
+  return normalizedPath;
+};
+
+/* ============================================================
+   GET ALL IMAGES FROM PAYLOAD PRODUCT
+============================================================ */
+
+const getProductImages = (rawProduct: any): string[] => {
+  if (!rawProduct) {
+    return [];
+  }
+
+  const images: string[] = [];
+
+  /* New / primary images field */
+  if (Array.isArray(rawProduct.images)) {
+    rawProduct.images.forEach((item: any) => {
+      const imageUrl = getImageUrl(item?.image ?? item);
+
+      if (imageUrl) {
+        images.push(imageUrl);
+      }
+    });
+  }
+
+  /* Legacy single image field */
+  if (images.length === 0 && rawProduct.image) {
+    const legacyImage = getImageUrl(rawProduct.image);
+
+    if (legacyImage) {
+      images.push(legacyImage);
+    }
+  }
+
+  /* Remove duplicates */
+  return Array.from(new Set(images));
+};
+
+/* ============================================================
+   DESCRIPTION HELPER
+============================================================ */
+
+const getDescriptionText = (description: any): string => {
+  if (!description) {
+    return '';
+  }
+
+  if (typeof description === 'string') {
+    return description;
+  }
+
+  /* Payload Lexical rich text */
+  if (
+    description?.root?.children &&
+    Array.isArray(description.root.children)
+  ) {
+    return description.root.children
+      .map((block: any) => {
+        if (!Array.isArray(block?.children)) {
+          return '';
+        }
+
+        return block.children
+          .map((child: any) => child?.text || '')
+          .join('');
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  return '';
+};
+
+/* ============================================================
+   CATEGORY HELPER
+============================================================ */
+
+const getCategoryName = (category: any): string => {
+  if (!category) {
+    return 'COLLECTION';
+  }
+
+  if (typeof category === 'string') {
+    return category;
+  }
+
+  return category.title || category.name || 'COLLECTION';
+};
+
+/* ============================================================
+   PRICE FORMATTER
+============================================================ */
+
+const formatPrice = (price: any): string => {
+  const numericPrice = Number(price) || 0;
+
+  return `PKR ${numericPrice.toLocaleString()}`;
+};
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+export default function SingleProductPage({
+  params,
+}: PageProps) {
   const { id } = use(params);
 
   const [product, setProduct] = useState<any>(null);
   const [relevantProducts, setRelevantProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [selectedImage, setSelectedImage] = useState('');
   const [addedId, setAddedId] = useState<string | null>(null);
 
@@ -57,12 +246,19 @@ export default function SingleProductPage({ params }: PageProps) {
   const [cartCount, setCartCount] = useState(0);
   const [selectedSize, setSelectedSize] = useState('');
   const [quantity, setQuantity] = useState(1);
-
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  // ==========================================================
-  // FETCH PRODUCT FROM PAYLOAD CMS
-  // ==========================================================
+  /* ==========================================================
+     CART COUNT
+  ========================================================== */
+
+  const updateCartCount = () => {
+    setCartCount(getActiveCartCount());
+  };
+
+  /* ==========================================================
+     FETCH PRODUCT
+  ========================================================== */
 
   useEffect(() => {
     async function fetchProductData() {
@@ -71,22 +267,43 @@ export default function SingleProductPage({ params }: PageProps) {
 
         let raw: any = null;
 
-        // First try to find product using slug
+        /* ------------------------------------------------------
+           FIRST: FIND PRODUCT BY SLUG
+        ------------------------------------------------------ */
+
         const slugRes = await fetch(
-          `/api/products?where[slug][equals]=${encodeURIComponent(id)}&depth=2`,
+          `/api/products?where[slug][equals]=${encodeURIComponent(
+            id,
+          )}&depth=3`,
+          {
+            cache: 'no-store',
+          },
         );
 
         if (slugRes.ok) {
           const slugData = await slugRes.json();
 
-          if (slugData.docs && slugData.docs.length > 0) {
+          if (
+            slugData?.docs &&
+            slugData.docs.length > 0
+          ) {
             raw = slugData.docs[0];
           }
         }
 
-        // Fallback: find product directly by ID
+        /* ------------------------------------------------------
+           FALLBACK: FIND PRODUCT BY PAYLOAD ID
+        ------------------------------------------------------ */
+
         if (!raw) {
-          const idRes = await fetch(`/api/products/${id}?depth=2`);
+          const idRes = await fetch(
+            `/api/products/${encodeURIComponent(
+              id,
+            )}?depth=3`,
+            {
+              cache: 'no-store',
+            },
+          );
 
           if (idRes.ok) {
             raw = await idRes.json();
@@ -97,87 +314,138 @@ export default function SingleProductPage({ params }: PageProps) {
           throw new Error('Product not found');
         }
 
-        // ======================================================
-        // IMAGE HANDLING
-        // ======================================================
+        /* ======================================================
+           PAYLOAD DEBUG
+        ====================================================== */
 
-        const imgs = (raw.images || [])
-          .map((item: any) =>
-            typeof item.image === 'object'
-              ? item.image?.url
-              : null,
-          )
-          .filter(Boolean);
+        console.log('====================================');
+        console.log('PAYLOAD PRODUCT:', raw);
+        console.log('PAYLOAD PRODUCT ID:', raw.id);
+        console.log('PAYLOAD PRODUCT IMAGES:', raw.images);
+        console.log(
+          'PAYLOAD PRODUCT LEGACY IMAGE:',
+          raw.image,
+        );
+        console.log(
+          'PAYLOAD BASE URL:',
+          PAYLOAD_BASE_URL,
+        );
+        console.log('====================================');
+
+        /* ======================================================
+           IMPORTANT:
+           THIS IS THE REAL PAYLOAD PRODUCT ID
+        ====================================================== */
+
+        const payloadProductId = String(raw.id);
+
+        console.log(
+          'CANONICAL PAYLOAD PRODUCT ID:',
+          payloadProductId,
+        );
+
+        /* ======================================================
+           EXTRACT PAYLOAD IMAGES
+        ====================================================== */
+
+        const imgs = getProductImages(raw);
+
+        console.log(
+          'RESOLVED PAYLOAD IMAGES:',
+          imgs,
+        );
+
+        /* ======================================================
+           MAIN IMAGE
+        ====================================================== */
 
         const mainImg =
-          imgs[0] ||
-          raw.image?.url ||
-          raw.image ||
-          '/placeholder.png';
+          imgs.length > 0
+            ? imgs[0]
+            : PLACEHOLDER_IMAGE;
 
-        // ======================================================
-        // RICHTEXT DESCRIPTION
-        // ======================================================
+        console.log(
+          'RESOLVED MAIN IMAGE:',
+          mainImg,
+        );
 
-        const descText =
-          typeof raw.description === 'string'
-            ? raw.description
-            : raw.description?.root?.children
-                ?.map((block: any) =>
-                  block.children
-                    ?.map((child: any) => child.text)
-                    .join(''),
-                )
-                .join('\n') || '';
+        /* ======================================================
+           DESCRIPTION
+        ====================================================== */
 
-        // ======================================================
-        // CATEGORY
-        // ======================================================
+        const descText = getDescriptionText(
+          raw.description,
+        );
 
-        const catName =
-          typeof raw.category === 'object'
-            ? raw.category?.title ||
-              raw.category?.name ||
-              'COLLECTION'
-            : 'COLLECTION';
+        /* ======================================================
+           CATEGORY
+        ====================================================== */
 
-        // ======================================================
-        // AVAILABLE SIZES
-        // ======================================================
+        const catName = getCategoryName(
+          raw.category,
+        );
+
+        /* ======================================================
+           SIZES
+        ====================================================== */
 
         const availableSizes =
-          Array.isArray(raw.sizes) && raw.sizes.length > 0
+          Array.isArray(raw.sizes) &&
+          raw.sizes.length > 0
             ? raw.sizes
-            : ['SMALL', 'MEDIUM', 'LARGE', 'X-LARGE'];
+            : [
+                'SMALL',
+                'MEDIUM',
+                'LARGE',
+                'X-LARGE',
+              ];
 
-        // ======================================================
-        // FORMAT PRODUCT
-        // ======================================================
+        /* ======================================================
+           FORMATTED PRODUCT
+
+           IMPORTANT:
+           id and payloadProductId both point to the
+           actual Payload document ID.
+        ====================================================== */
 
         const formattedProduct = {
-          id: String(raw.id),
-          slug: raw.slug || String(raw.id),
+          id: payloadProductId,
+
+          payloadProductId,
+
+          slug:
+            raw.slug ||
+            payloadProductId,
 
           title:
             raw.title ||
             raw.name ||
             'UNTITLED PRODUCT',
 
-          batch: raw.batch || 'BATCH-001',
+          batch:
+            raw.batch ||
+            'BATCH-001',
 
           isFounderEdition:
-            raw.isFounderEdition ?? true,
+            raw.isFounderEdition ??
+            true,
 
-          msrp: `PKR ${
-            raw.msrp?.toLocaleString() || 0
-          }`,
+          msrp: formatPrice(
+            raw.msrp,
+          ),
 
-          founderPrice: `PKR ${
-            raw.founderPrice?.toLocaleString() || 0
-          }`,
+          founderPrice:
+            formatPrice(
+              raw.founderPrice ??
+                raw.price,
+            ),
 
           rawFounderPrice:
-            raw.founderPrice || raw.price || 0,
+            Number(
+              raw.founderPrice ??
+                raw.price ??
+                0,
+            ),
 
           gsm: raw.gsm
             ? `${raw.gsm} GSM`
@@ -201,61 +469,115 @@ export default function SingleProductPage({ params }: PageProps) {
 
           description: descText,
 
+          /* Payload image */
           image: mainImg,
 
+          /* All Payload images */
           images:
             imgs.length > 0
               ? imgs
               : [mainImg],
         };
 
+        console.log(
+          'FORMATTED PRODUCT:',
+          formattedProduct,
+        );
+
         setProduct(formattedProduct);
         setSelectedImage(mainImg);
-
-        // Default size
         setSelectedSize(availableSizes[0]);
 
-        // ======================================================
-        // FETCH RELATED PRODUCTS
-        // ======================================================
+        /* ======================================================
+           RELATED PRODUCTS
+        ====================================================== */
 
         const catId =
           typeof raw.category === 'object'
-            ? raw.category.id
+            ? raw.category?.id
             : raw.category;
 
         if (catId) {
           const relRes = await fetch(
-            `/api/products?where[category][equals]=${catId}&where[id][not_equals]=${raw.id}&limit=3&depth=2`,
+            `/api/products?where[category][equals]=${encodeURIComponent(
+              catId,
+            )}&where[id][not_equals]=${encodeURIComponent(
+              raw.id,
+            )}&limit=3&depth=3`,
+            {
+              cache: 'no-store',
+            },
           );
 
           if (relRes.ok) {
-            const relData = await relRes.json();
+            const relData =
+              await relRes.json();
 
             const formattedRel = (
-              relData.docs || []
+              relData?.docs || []
             ).map((doc: any) => {
+              const relatedImages =
+                getProductImages(doc);
+
               const relImg =
-                doc.images?.[0]?.image?.url ||
-                doc.image?.url ||
-                doc.image ||
-                '/placeholder.png';
+                relatedImages.length > 0
+                  ? relatedImages[0]
+                  : PLACEHOLDER_IMAGE;
+
+              const relatedPayloadProductId =
+                String(doc.id);
+
+              console.log(
+                'RELATED PRODUCT:',
+                doc.title,
+              );
+
+              console.log(
+                'RELATED PAYLOAD PRODUCT ID:',
+                relatedPayloadProductId,
+              );
+
+              console.log(
+                'RELATED PAYLOAD IMAGES:',
+                relatedImages,
+              );
+
+              console.log(
+                'RELATED RESOLVED IMAGE:',
+                relImg,
+              );
 
               return {
-                id: String(doc.slug || doc.id),
+                /*
+                 * IMPORTANT:
+                 * Keep the real Payload ID separately.
+                 */
+                payloadProductId:
+                  relatedPayloadProductId,
+
+                /*
+                 * Use slug for navigation.
+                 */
+                id: String(
+                  doc.slug ||
+                    doc.id,
+                ),
 
                 title:
                   doc.title ||
                   doc.name ||
                   'UNTITLED PRODUCT',
 
-                msrp: `PKR ${
-                  doc.msrp?.toLocaleString() || 0
-                }`,
+                msrp:
+                  formatPrice(
+                    doc.msrp,
+                  ),
 
-                founderPrice: `PKR ${
-                  doc.founderPrice?.toLocaleString() || 0
-                }`,
+                founderPrice:
+                  formatPrice(
+                    doc.founderPrice ??
+                      doc.price,
+                  ),
 
                 gsm: doc.gsm
                   ? `${doc.gsm} GSM`
@@ -277,7 +599,9 @@ export default function SingleProductPage({ params }: PageProps) {
               };
             });
 
-            setRelevantProducts(formattedRel);
+            setRelevantProducts(
+              formattedRel,
+            );
           }
         }
       } catch (error) {
@@ -285,6 +609,8 @@ export default function SingleProductPage({ params }: PageProps) {
           'Error fetching product:',
           error,
         );
+
+        setProduct(null);
       } finally {
         setLoading(false);
       }
@@ -294,17 +620,15 @@ export default function SingleProductPage({ params }: PageProps) {
     updateCartCount();
   }, [id]);
 
-  // ==========================================================
-  // CART COUNT
-  // ==========================================================
-
-  const updateCartCount = () => {
-    setCartCount(getActiveCartCount());
-  };
+  /* ==========================================================
+     CART EVENT LISTENERS
+  ========================================================== */
 
   useEffect(() => {
     const handleCartUpdate = () => {
-      setCartCount(getActiveCartCount());
+      setCartCount(
+        getActiveCartCount(),
+      );
     };
 
     window.addEventListener(
@@ -330,9 +654,14 @@ export default function SingleProductPage({ params }: PageProps) {
     };
   }, []);
 
-  // ==========================================================
-  // ADD TO CART
-  // ==========================================================
+  /* ==========================================================
+     ADD TO CART
+
+     IMPORTANT:
+     payloadProductId is ALWAYS the actual Payload
+     products document ID.
+
+  ========================================================== */
 
   const handleAddToCart = () => {
     if (
@@ -342,70 +671,160 @@ export default function SingleProductPage({ params }: PageProps) {
       return;
     }
 
+    /*
+     * This must be the real Payload Product document ID.
+     */
+    const payloadProductId = String(
+      product.payloadProductId ||
+        product.id,
+    );
+
+    console.log(
+      'ADDING PAYLOAD PRODUCT TO CART:',
+      payloadProductId,
+    );
+
     const {
       items: existingCart,
     } = getCartData();
 
     const numericPrice =
       parseInt(
-        String(product.founderPrice).replace(
+        String(
+          product.rawFounderPrice ??
+            product.founderPrice,
+        ).replace(
           /[^0-9]/g,
           '',
         ),
         10,
       ) || 0;
 
-    // Same product + same size = increase quantity
+    /*
+     * Match cart item using Payload ID,
+     * NOT slug / title / frontend mock ID.
+     */
     const existingIndex =
       existingCart.findIndex(
         (item: any) =>
-          item.id === product.id &&
-          item.size === selectedSize,
+          String(
+            item.payloadProductId ||
+              item.id,
+          ) ===
+            payloadProductId &&
+          item.size ===
+            selectedSize,
       );
 
+    /* ========================================================
+       EXISTING ITEM
+    ======================================================== */
+
     if (existingIndex > -1) {
-      existingCart[existingIndex] = {
-        ...existingCart[existingIndex],
+      const existingItem =
+        existingCart[
+          existingIndex
+        ];
+
+      existingCart[
+        existingIndex
+      ] = {
+        ...existingItem,
+
+        /*
+         * Normalize the cart item so it has
+         * the real Payload ID.
+         */
+        id: payloadProductId,
+
+        payloadProductId,
 
         quantity:
-          (existingCart[existingIndex]
-            .quantity || 1) + quantity,
+          (existingItem.quantity ||
+            1) + quantity,
+
+        /*
+         * Keep Payload image.
+         */
+        image:
+          product.image,
       };
-    } else {
+    }
+
+    /* ========================================================
+       NEW ITEM
+    ======================================================== */
+
+    else {
       existingCart.push({
-        id: String(product.id),
+        /*
+         * Both IDs intentionally use the actual
+         * Payload Product document ID.
+         */
+        id: payloadProductId,
 
-        title: product.title,
+        payloadProductId,
 
-        price: numericPrice,
+        title:
+          product.title,
+
+        price:
+          numericPrice,
 
         quantity,
 
-        size: selectedSize,
+        size:
+          selectedSize,
 
-        gsm: product.gsm,
+        gsm:
+          product.gsm,
 
-        fabric: product.fabric,
+        fabric:
+          product.fabric,
 
-        category: product.category,
+        category:
+          product.category,
 
-        image: selectedImage,
+        /*
+         * Save actual Payload image URL.
+         */
+        image:
+          product.image,
       });
     }
 
-    saveCartData(existingCart);
+    console.log(
+      'FINAL CART ITEM:',
+      existingCart[
+        existingIndex > -1
+          ? existingIndex
+          : existingCart.length - 1
+      ],
+    );
+
+    /*
+     * Save updated cart.
+     */
+    saveCartData(
+      existingCart,
+    );
 
     updateCartCount();
 
     window.dispatchEvent(
-      new Event('cart-updated'),
+      new Event(
+        'cart-updated',
+      ),
     );
 
-    setAddedId(product.id);
+    setAddedId(
+      payloadProductId,
+    );
 
     setToastNotification({
       show: true,
-      title: product.title,
+      title:
+        product.title,
     });
 
     setTimeout(() => {
@@ -413,13 +832,15 @@ export default function SingleProductPage({ params }: PageProps) {
     }, 1800);
 
     setTimeout(() => {
-      setToastNotification(null);
+      setToastNotification(
+        null,
+      );
     }, 3500);
   };
 
-  // ==========================================================
-  // REVOKE ACCESS / EXIT VAULT
-  // ==========================================================
+  /* ==========================================================
+     REVOKE ACCESS
+  ========================================================== */
 
   const handleRevokeAccess = () => {
     const activeCartKey =
@@ -431,54 +852,63 @@ export default function SingleProductPage({ params }: PageProps) {
       );
     }
 
-    Object.keys(localStorage).forEach(
-      (key) => {
-        if (
-          key.startsWith('kult_cart') ||
-          key.includes('cart') ||
-          key.startsWith(
-            'kult_batch001',
-          ) ||
-          key.startsWith('kult_vault') ||
-          key.startsWith(
-            'kult_founder',
-          )
-        ) {
-          localStorage.removeItem(key);
-        }
-      },
-    );
+    Object.keys(
+      localStorage,
+    ).forEach((key) => {
+      if (
+        key.startsWith(
+          'kult_cart',
+        ) ||
+        key.includes('cart') ||
+        key.startsWith(
+          'kult_batch001',
+        ) ||
+        key.startsWith(
+          'kult_vault',
+        ) ||
+        key.startsWith(
+          'kult_founder',
+        )
+      ) {
+        localStorage.removeItem(
+          key,
+        );
+      }
+    });
 
     setCartCount(0);
 
     window.dispatchEvent(
-      new Event('cart-updated'),
+      new Event(
+        'cart-updated',
+      ),
     );
 
     window.location.href =
       '/batch-001';
   };
 
-  // ==========================================================
-  // HERO SLIDER
-  // ==========================================================
+  /* ==========================================================
+     HERO SLIDER
+  ========================================================== */
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide(
-        (prev) =>
-          (prev + 1) %
-          HERO_IMAGES.length,
-      );
-    }, 5000);
+    const timer =
+      setInterval(() => {
+        setCurrentSlide(
+          (prev) =>
+            (prev + 1) %
+            HERO_IMAGES.length,
+        );
+      }, 5000);
 
     return () =>
       clearInterval(timer);
   }, []);
 
-  // ==========================================================
-  // STATUS BADGE
-  // ==========================================================
+  /* ==========================================================
+     STATUS BADGE
+  ========================================================== */
 
   const getStatusBadge = (
     status: string,
@@ -523,9 +953,9 @@ export default function SingleProductPage({ params }: PageProps) {
     }
   };
 
-  // ==========================================================
-  // LOADING
-  // ==========================================================
+  /* ==========================================================
+     LOADING
+  ========================================================== */
 
   if (loading) {
     return (
@@ -547,9 +977,9 @@ export default function SingleProductPage({ params }: PageProps) {
     );
   }
 
-  // ==========================================================
-  // PRODUCT NOT FOUND
-  // ==========================================================
+  /* ==========================================================
+     PRODUCT NOT FOUND
+  ========================================================== */
 
   if (!product) {
     return (
@@ -574,10 +1004,8 @@ export default function SingleProductPage({ params }: PageProps) {
   }
 
   const isSoldOut =
-    product.status ===
-      'SOLD_OUT' ||
-    product.status ===
-      'SOLD OUT';
+    product.status === 'SOLD_OUT' ||
+    product.status === 'SOLD OUT';
 
   return (
     <div className="relative min-h-screen bg-[#0A0B0D] text-[#E8E2D6] font-mono selection:bg-[#D4AF37] selection:text-black overflow-x-hidden">
@@ -761,7 +1189,7 @@ export default function SingleProductPage({ params }: PageProps) {
         </nav>
 
         {/* ====================================================
-            PRODUCT HEADER
+            HEADER
         ==================================================== */}
 
         <header className="w-full border-b border-[#2D323E]/80 bg-[#0A0B0D]/50 backdrop-blur-md px-6 py-8">
@@ -788,21 +1216,38 @@ export default function SingleProductPage({ params }: PageProps) {
         </header>
 
         {/* ====================================================
-            MAIN PRODUCT AREA
+            MAIN
         ==================================================== */}
 
         <main className="max-w-7xl mx-auto px-6 py-10 sm:py-14">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
             {/* ==================================================
-                PRODUCT GALLERY
+                LEFT
             ================================================== */}
 
             <div className="lg:col-span-7 space-y-4">
               <div className="bg-[#12141B]/90 backdrop-blur-md border border-[#2D323E] rounded-2xl p-4 shadow-[0_10px_30px_rgba(0,0,0,0.7)]">
+                {/* MAIN IMAGE */}
+
                 <div className="h-[430px] sm:h-[600px] bg-[#0A0B0D]/95 border border-[#2D323E] rounded-xl relative overflow-hidden group">
                   <img
-                    src={selectedImage}
+                    src={
+                      selectedImage ||
+                      PLACEHOLDER_IMAGE
+                    }
                     alt={product.title}
+                    onError={(e) => {
+                      const img =
+                        e.currentTarget;
+
+                      if (
+                        img.src !==
+                        PLACEHOLDER_IMAGE
+                      ) {
+                        img.src =
+                          PLACEHOLDER_IMAGE;
+                      }
+                    }}
                     className="w-full h-full object-cover object-center group-hover:scale-[1.02] transition-transform duration-700"
                   />
 
@@ -829,12 +1274,9 @@ export default function SingleProductPage({ params }: PageProps) {
                   )}
                 </div>
 
-                {/* ==================================================
-                    THUMBNAILS
-                ================================================== */}
+                {/* THUMBNAILS */}
 
-                {product.images.length >
-                  1 && (
+                {product.images.length > 1 && (
                   <div className="flex gap-3 overflow-x-auto pt-4 pb-1">
                     {product.images.map(
                       (
@@ -842,7 +1284,7 @@ export default function SingleProductPage({ params }: PageProps) {
                         idx: number,
                       ) => (
                         <button
-                          key={idx}
+                          key={`${imgUrl}-${idx}`}
                           onClick={() =>
                             setSelectedImage(
                               imgUrl,
@@ -857,7 +1299,13 @@ export default function SingleProductPage({ params }: PageProps) {
                         >
                           <img
                             src={imgUrl}
-                            alt={`${product.title} ${idx + 1}`}
+                            alt={`${product.title} ${
+                              idx + 1
+                            }`}
+                            onError={(e) => {
+                              e.currentTarget.src =
+                                PLACEHOLDER_IMAGE;
+                            }}
                             className="w-full h-full object-cover"
                           />
                         </button>
@@ -943,7 +1391,7 @@ export default function SingleProductPage({ params }: PageProps) {
             </div>
 
             {/* ==================================================
-                PRODUCT INFORMATION
+                RIGHT SIDE
             ================================================== */}
 
             <div className="lg:col-span-5">
@@ -978,8 +1426,6 @@ export default function SingleProductPage({ params }: PageProps) {
                       product.status,
                     )}
                   </div>
-
-                  {/* DIVIDER */}
 
                   <div className="border-t border-[#2D323E] my-6" />
 
@@ -1037,9 +1483,7 @@ export default function SingleProductPage({ params }: PageProps) {
 
                     <div className="grid grid-cols-4 gap-2">
                       {product.sizes.map(
-                        (
-                          size: string,
-                        ) => (
+                        (size: string) => (
                           <button
                             key={size}
                             onClick={() =>
@@ -1047,7 +1491,9 @@ export default function SingleProductPage({ params }: PageProps) {
                                 size,
                               )
                             }
-                            disabled={isSoldOut}
+                            disabled={
+                              isSoldOut
+                            }
                             className={`py-3 text-[10px] font-bold uppercase rounded-lg border transition-all ${
                               selectedSize ===
                               size
@@ -1084,7 +1530,9 @@ export default function SingleProductPage({ params }: PageProps) {
                               ),
                           )
                         }
-                        disabled={isSoldOut}
+                        disabled={
+                          isSoldOut
+                        }
                         className="w-10 h-10 rounded-lg bg-[#12141B] border border-[#2D323E] flex items-center justify-center hover:border-[#D4AF37]/50 hover:text-[#D4AF37] transition-all disabled:opacity-40"
                       >
                         <Minus className="w-3.5 h-3.5" />
@@ -1107,7 +1555,9 @@ export default function SingleProductPage({ params }: PageProps) {
                               prev + 1,
                           )
                         }
-                        disabled={isSoldOut}
+                        disabled={
+                          isSoldOut
+                        }
                         className="w-10 h-10 rounded-lg bg-[#12141B] border border-[#2D323E] flex items-center justify-center hover:border-[#D4AF37]/50 hover:text-[#D4AF37] transition-all disabled:opacity-40"
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -1115,24 +1565,26 @@ export default function SingleProductPage({ params }: PageProps) {
                     </div>
                   </div>
 
-                  {/* ACTION */}
+                  {/* ADD TO CART */}
 
                   <button
                     onClick={
                       handleAddToCart
                     }
-                    disabled={isSoldOut}
+                    disabled={
+                      isSoldOut
+                    }
                     className={`w-full mt-6 py-4 font-black text-xs uppercase tracking-[0.25em] transition-all rounded-xl flex items-center justify-center gap-2 ${
                       isSoldOut
                         ? 'bg-neutral-800 text-neutral-500 border border-neutral-700 cursor-not-allowed'
                         : addedId ===
-                            product.id
+                            product.payloadProductId
                           ? 'bg-emerald-500 text-black shadow-[0_5px_25px_rgba(16,185,129,0.2)]'
                           : 'bg-[#D4AF37] hover:bg-[#b8952b] text-black shadow-[0_5px_25px_rgba(212,175,55,0.25)] hover:shadow-[0_5px_35px_rgba(212,175,55,0.4)] cursor-pointer'
                     }`}
                   >
                     {addedId ===
-                    product.id ? (
+                    product.payloadProductId ? (
                       <>
                         <Check className="w-4 h-4" />
 
@@ -1177,7 +1629,7 @@ export default function SingleProductPage({ params }: PageProps) {
                   </Link>
                 </div>
 
-                {/* SECURITY INFO */}
+                {/* INFO */}
 
                 <div className="bg-[#12141B]/70 backdrop-blur-md border border-[#2D323E] rounded-2xl p-5">
                   <div className="grid grid-cols-3 gap-3">
@@ -1216,12 +1668,11 @@ export default function SingleProductPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* ==================================================
+          {/* ====================================================
               RELATED PRODUCTS
-          ================================================== */}
+          ==================================================== */}
 
-          {relevantProducts.length >
-            0 && (
+          {relevantProducts.length > 0 && (
             <section className="pt-14 mt-14 border-t border-[#2D323E]/80">
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-7">
                 <div>
@@ -1243,6 +1694,7 @@ export default function SingleProductPage({ params }: PageProps) {
                   className="flex items-center gap-2 text-[10px] text-[#E8E2D6]/60 hover:text-[#D4AF37] uppercase tracking-widest font-bold transition-colors"
                 >
                   VIEW FULL CATALOGUE
+
                   <ArrowUpRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
@@ -1255,7 +1707,9 @@ export default function SingleProductPage({ params }: PageProps) {
                   {relevantProducts.map(
                     (rel) => (
                       <motion.div
-                        key={rel.id}
+                        key={
+                          rel.payloadProductId
+                        }
                         initial={{
                           opacity: 0,
                           y: 20,
@@ -1276,11 +1730,16 @@ export default function SingleProductPage({ params }: PageProps) {
                           <div className="h-64 bg-[#0A0B0D]/95 border border-[#2D323E] rounded-xl relative overflow-hidden group-hover:border-[#D4AF37]/40 transition-colors">
                             <img
                               src={
-                                rel.image
+                                rel.image ||
+                                PLACEHOLDER_IMAGE
                               }
                               alt={
                                 rel.title
                               }
+                              onError={(e) => {
+                                e.currentTarget.src =
+                                  PLACEHOLDER_IMAGE;
+                              }}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100"
                             />
 
@@ -1291,7 +1750,7 @@ export default function SingleProductPage({ params }: PageProps) {
                             </span>
 
                             <span className="absolute bottom-3 right-3 text-[9px] text-[#E8E2D6]/70 font-bold uppercase tracking-widest bg-black/60 px-2.5 py-1 rounded border border-white/10 backdrop-blur-md">
-                              {rel.id}
+                              {rel.payloadProductId}
                             </span>
                           </div>
                         </Link>
@@ -1299,22 +1758,16 @@ export default function SingleProductPage({ params }: PageProps) {
                         <div className="space-y-4">
                           <div>
                             <h3 className="font-bold text-sm uppercase tracking-wider text-[#E8E2D6] group-hover:text-[#D4AF37] transition-colors leading-snug">
-                              {
-                                rel.title
-                              }
+                              {rel.title}
                             </h3>
 
                             <p className="text-[9px] text-[#D4AF37] font-semibold uppercase tracking-widest mt-2">
-                              {
-                                rel.specs
-                              }
+                              {rel.specs}
                             </p>
 
                             <p className="text-[9px] text-[#E8E2D6]/40 uppercase tracking-widest mt-1">
                               FABRIC:{' '}
-                              {
-                                rel.fabric
-                              }
+                              {rel.fabric}
                             </p>
                           </div>
 
@@ -1326,9 +1779,7 @@ export default function SingleProductPage({ params }: PageProps) {
                                 </span>
 
                                 <span className="text-sm font-black text-[#E8E2D6] line-through">
-                                  {
-                                    rel.msrp
-                                  }
+                                  {rel.msrp}
                                 </span>
                               </div>
 
@@ -1367,4 +1818,3 @@ export default function SingleProductPage({ params }: PageProps) {
     </div>
   );
 }
-

@@ -99,12 +99,13 @@ export const Orders: CollectionConfig = {
         },
       ],
     },
-    {
+   {
       name: 'shippingAddress',
       type: 'group',
       fields: [
         { name: 'city', type: 'text' },
         { name: 'address', type: 'text' },
+        { name: 'phone', type: 'text' }, // Optional: agar phone bhi save karwana ho
       ],
     },
   ],

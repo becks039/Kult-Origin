@@ -293,7 +293,7 @@ export default function VapiResponder() {
             {isSending && (
               <div className="flex items-center gap-2.5 text-[10px] text-[#FAFAFA] bg-[#1A1A1A] border border-[#2A2A2A] w-fit px-3 py-2 rounded-xl">
                 <Loader2 className="w-3 h-3 animate-spin" />
-                <span className="tracking-wide">AI is thinking...</span>
+                <span className="tracking-wide">...</span>
               </div>
             )}
           </div>

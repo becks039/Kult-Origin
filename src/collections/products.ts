@@ -1,128 +1,137 @@
-import { CollectionConfig } from 'payload';
+import type { CollectionConfig } from 'payload'
 
 export const Products: CollectionConfig = {
   slug: 'products',
+
   admin: {
-    useAsTitle: 'title',
+    useAsTitle: 'name',
+    defaultColumns: [
+      'name',
+      'price',
+      'category',
+      'stock',
+      'featured',
+      'updatedAt',
+    ],
   },
+
   access: {
     read: () => true,
+    create: () => true,
+    update: () => true,
+    delete: () => true,
   },
+
   fields: [
     {
-      name: 'title',
+      name: 'name',
       type: 'text',
       required: true,
+      admin: {
+        description: 'Product name',
+      },
     },
+
     {
       name: 'slug',
       type: 'text',
       required: true,
       unique: true,
-      index: true,
-    },
-    // --- BATCH & FOUNDER EDITION FIELDS ---
-    {
-      name: 'batch',
-      type: 'text',
-      defaultValue: 'BATCH-001',
       admin: {
-        description: 'e.g., BATCH-001, BATCH-002',
+        description: 'Unique URL-friendly product slug',
       },
     },
-    {
-      name: 'isFounderEdition',
-      type: 'checkbox',
-      defaultValue: true,
-      label: 'Founder Edition Item',
-    },
-    // --------------------------------------
+
     {
       name: 'description',
-      type: 'richText',
+      type: 'textarea',
       required: true,
     },
+
     {
-      name: 'msrp',
+      name: 'price',
       type: 'number',
       required: true,
+      min: 0,
     },
-    {
-      name: 'founderPrice',
-      type: 'number',
-      required: true,
-    },
-    {
-      name: 'gsm',
-      type: 'number',
-    },
-    {
-      name: 'fabric',
-      type: 'text',
-      defaultValue: '200+ GSM Heavy-Fleece Technical Fabric',
-    },
-    {
-      name: 'printType',
-      type: 'text',
-      defaultValue: '3D High-Build Silicone/Rubberized Print',
-    },
+
     {
       name: 'category',
-      type: 'relationship',
-      relationTo: 'categories',
+      type: 'text',
       required: true,
     },
-    // Dynamic Sizes option
+
     {
-      name: 'sizes',
-      type: 'select',
-      hasMany: true,
-      options: [
-        { label: 'S', value: 'SMALL' },
-        { label: 'M', value: 'MEDIUM' },
-        { label: 'L', value: 'LARGE' },
-        { label: 'XL', value: 'X-LARGE' },
-      ],
-      defaultValue: ['SMALL', 'MEDIUM', 'LARGE', 'X-LARGE'],
+      name: 'stock',
+      type: 'number',
+      required: true,
+      min: 0,
+      defaultValue: 0,
     },
+
     {
-      name: 'status',
-      type: 'select',
-      options: [
-        { label: 'Draft', value: 'DRAFT' },
-        { label: 'Available', value: 'AVAILABLE' },
-        { label: 'Sold Out', value: 'SOLD_OUT' },
-      ],
-      defaultValue: 'AVAILABLE',
+      name: 'featured',
+      type: 'checkbox',
+      defaultValue: false,
     },
-   {
-  name: 'images',
-  type: 'array',
-  required: true,
-  fields: [
+
+    // ⭐ MAIN PRODUCT IMAGE
     {
       name: 'image',
       type: 'upload',
-      relationTo: 'media',
+      relationTo: 'product-media',
       required: true,
+      admin: {
+        description:
+          'Select the product image from Payload Media. This image will be displayed on the frontend.',
+      },
+    },
+
+    // Optional additional product images
+    {
+      name: 'gallery',
+      type: 'array',
+      admin: {
+        description: 'Additional product images',
+      },
+      fields: [
+        {
+          name: 'image',
+          type: 'upload',
+          relationTo: 'media',
+          required: true,
+        },
+      ],
+    },
+
+    {
+      name: 'sizes',
+      type: 'array',
+      admin: {
+        description: 'Available product sizes',
+      },
+      fields: [
+        {
+          name: 'size',
+          type: 'text',
+          required: true,
+        },
+      ],
+    },
+
+    {
+      name: 'colors',
+      type: 'array',
+      admin: {
+        description: 'Available product colors',
+      },
+      fields: [
+        {
+          name: 'color',
+          type: 'text',
+          required: true,
+        },
+      ],
     },
   ],
-},
-    {
-      name: 'totalStock',
-      type: 'number',
-      required: true,
-      defaultValue: 500,
-    },
-    {
-      name: 'reservedStock',
-      type: 'number',
-      defaultValue: 0,
-    },
-    {
-      name: 'soldStock',
-      type: 'number',
-      defaultValue: 0,
-    },
-  ],
-};
+}

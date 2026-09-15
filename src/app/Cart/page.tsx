@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import {
@@ -21,7 +21,6 @@ import {
 
 import {
   CartItem,
-  PRODUCTS_LOOKUP,
   getCartData,
   saveCartData,
 } from '@/lib/cart';
@@ -30,7 +29,6 @@ function CartContent() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  const searchParams = useSearchParams();
   const router = useRouter();
 
   // ==========================================================
@@ -40,7 +38,9 @@ function CartContent() {
   const syncCart = () => {
     const { items, isExpired } = getCartData();
 
-    setCartItems(isExpired ? [] : items);
+    const updatedItems = isExpired ? [] : items;
+
+    setCartItems(updatedItems);
   };
 
   // ==========================================================
@@ -48,44 +48,19 @@ function CartContent() {
   // ==========================================================
 
   useEffect(() => {
-    const { items: currentItems, isExpired } = getCartData();
+    const loadCart = () => {
+      const { items, isExpired } = getCartData();
 
-    let updatedCart = isExpired ? [] : [...currentItems];
+      setCartItems(isExpired ? [] : items);
+      setIsLoaded(true);
+    };
 
-    const addItemId = searchParams.get('addItem');
-    const requestedSize = searchParams.get('size') || 'M';
+    loadCart();
 
-    if (addItemId && PRODUCTS_LOOKUP[addItemId]) {
-      const product = PRODUCTS_LOOKUP[addItemId];
-
-      const existingIdx = updatedCart.findIndex(
-        (item) =>
-          item.id === addItemId &&
-          (item.size === requestedSize || !item.size)
-      );
-
-      if (existingIdx > -1) {
-        updatedCart[existingIdx].quantity += 1;
-      } else {
-        updatedCart.push({
-          ...product,
-          quantity: 1,
-          size: requestedSize,
-        });
-      }
-
-      saveCartData(updatedCart);
-
-      router.replace('/Cart', {
-        scroll: false,
-      });
-    } else {
-      setCartItems(updatedCart);
-    }
-
-    setIsLoaded(true);
-
-    window.addEventListener('kult_cart_updated', syncCart);
+    window.addEventListener(
+      'kult_cart_updated',
+      syncCart
+    );
 
     return () => {
       window.removeEventListener(
@@ -93,7 +68,7 @@ function CartContent() {
         syncCart
       );
     };
-  }, [searchParams, router]);
+  }, []);
 
   // ==========================================================
   // UPDATE QUANTITY
@@ -106,18 +81,25 @@ function CartContent() {
   ) => {
     const updated = cartItems
       .map((item) => {
-        if (
-          item.id === id &&
-          item.size === size
-        ) {
-          const newQty = item.quantity + delta;
+        const sameProduct =
+          (item.payloadProductId || item.id) ===
+          (id || item.id);
 
-          return newQty > 0
-            ? {
-                ...item,
-                quantity: newQty,
-              }
-            : null;
+        const sameSize =
+          item.size === size;
+
+        if (sameProduct && sameSize) {
+          const newQty =
+            (item.quantity || 1) + delta;
+
+          if (newQty <= 0) {
+            return null;
+          }
+
+          return {
+            ...item,
+            quantity: newQty,
+          };
         }
 
         return item;
@@ -140,11 +122,16 @@ function CartContent() {
     size?: string
   ) => {
     const updated = cartItems.filter(
-      (item) =>
-        !(
-          item.id === id &&
-          item.size === size
-        )
+      (item) => {
+        const sameProduct =
+          (item.payloadProductId || item.id) ===
+          (id || item.id);
+
+        const sameSize =
+          item.size === size;
+
+        return !(sameProduct && sameSize);
+      }
     );
 
     setCartItems(updated);
@@ -165,7 +152,7 @@ function CartContent() {
     (acc, item) =>
       acc +
       (item.price || 0) *
-        item.quantity,
+        (item.quantity || 0),
     0
   );
 
@@ -175,7 +162,8 @@ function CartContent() {
       ? 0
       : 250;
 
-  const total = subtotal + shipping;
+  const total =
+    subtotal + shipping;
 
   // ==========================================================
   // LOADING
@@ -185,11 +173,13 @@ function CartContent() {
     return (
       <div className="min-h-screen bg-[#0A0B0D] text-[#E8E2D6] flex items-center justify-center font-mono">
         <div className="flex flex-col items-center gap-4">
+
           <div className="w-8 h-8 border-2 border-[#2D323E] border-t-[#D4AF37] rounded-full animate-spin" />
 
           <p className="text-[10px] uppercase tracking-[0.3em] text-[#E8E2D6]/50">
             LOADING ALLOCATION BAG...
           </p>
+
         </div>
       </div>
     );
@@ -289,8 +279,6 @@ function CartContent() {
 
             </div>
 
-            {/* NO CART BUTTON HERE */}
-
           </div>
 
         </nav>
@@ -342,8 +330,6 @@ function CartContent() {
                 </p>
 
               </div>
-
-             
 
             </div>
 
@@ -434,183 +420,213 @@ function CartContent() {
                   </div>
 
                   <span className="text-[8px] sm:text-[9px] uppercase tracking-widest text-[#D4AF37]">
-                    {cartItems.length} ITEM{cartItems.length !== 1 ? 'S' : ''}
+                    {cartItems.length} ITEM
+                    {cartItems.length !== 1 ? 'S' : ''}
                   </span>
 
                 </div>
 
                 <AnimatePresence>
 
-                  {cartItems.map((item, index) => (
+                  {cartItems.map((item, index) => {
 
-                    <motion.div
-                      key={`${item.id}-${item.size || 'M'}-${index}`}
-                      layout
-                      initial={{
-                        opacity: 0,
-                        y: 20,
-                      }}
-                      animate={{
-                        opacity: 1,
-                        y: 0,
-                      }}
-                      exit={{
-                        opacity: 0,
-                        x: -30,
-                        scale: 0.98,
-                      }}
-                      transition={{
-                        duration: 0.3,
-                      }}
-                      className="bg-[#12141B]/90 backdrop-blur-md border border-[#2D323E] rounded-2xl p-4 sm:p-6 hover:border-[#D4AF37]/60 transition-all duration-300 group shadow-[0_10px_30px_rgba(0,0,0,0.45)]"
-                    >
+                    /*
+                     * IMPORTANT:
+                     *
+                     * payloadProductId is the real Payload CMS
+                     * product document ID.
+                     *
+                     * We use it as the canonical identifier.
+                     *
+                     * We DO NOT use PRODUCTS_LOOKUP anymore.
+                     */
 
-                      <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                    const productId =
+                      item.payloadProductId ||
+                      item.id;
 
-                        {/* ==================================================
-                            PRODUCT IMAGE
-                        ================================================== */}
+                    return (
+                      <motion.div
+                        key={`${productId}-${item.size || 'M'}-${index}`}
+                        layout
+                        initial={{
+                          opacity: 0,
+                          y: 20,
+                        }}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                        }}
+                        exit={{
+                          opacity: 0,
+                          x: -30,
+                          scale: 0.98,
+                        }}
+                        transition={{
+                          duration: 0.3,
+                        }}
+                        className="bg-[#12141B]/90 backdrop-blur-md border border-[#2D323E] rounded-2xl p-4 sm:p-6 hover:border-[#D4AF37]/60 transition-all duration-300 group shadow-[0_10px_30px_rgba(0,0,0,0.45)]"
+                      >
 
-                        <div className="w-full sm:w-28 sm:h-28 aspect-[4/3] sm:aspect-square shrink-0 rounded-xl border border-[#2D323E] bg-[#0A0B0D] overflow-hidden flex items-center justify-center">
+                        <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
 
-                          {item.image ? (
+                          {/* ==================================================
+                              PRODUCT IMAGE
+                          ================================================== */}
 
-                            <img
-                              src={item.image}
-                              alt={item.title || 'KULT ITEM'}
-                              className="w-full h-full object-contain sm:object-cover group-hover:scale-105 transition-transform duration-500"
-                            />
+                          <div className="w-full sm:w-28 sm:h-28 aspect-[4/3] sm:aspect-square shrink-0 rounded-xl border border-[#2D323E] bg-[#0A0B0D] overflow-hidden flex items-center justify-center">
 
-                          ) : (
+                            {item.image ? (
 
-                            <ShoppingBag className="w-8 h-8 text-[#D4AF37]/60" />
+                              <img
+                                src={item.image}
+                                alt={
+                                  item.title ||
+                                  'KULT ITEM'
+                                }
+                                className="w-full h-full object-contain sm:object-cover group-hover:scale-105 transition-transform duration-500"
+                              />
 
-                          )}
+                            ) : (
 
-                        </div>
+                              <ShoppingBag className="w-8 h-8 text-[#D4AF37]/60" />
 
-                        {/* ==================================================
-                            PRODUCT DETAILS
-                        ================================================== */}
-
-                        <div className="flex-1 min-w-0 flex flex-col justify-between gap-5">
-
-                          <div className="space-y-2.5">
-
-                            <div className="flex flex-wrap items-center gap-2">
-
-                              <span className="text-[8px] sm:text-[9px] text-[#D4AF37] uppercase tracking-widest font-bold break-all">
-                                [{item.id}]
-                              </span>
-
-                              {item.gsm && (
-
-                                <span className="text-[8px] sm:text-[9px] text-[#E8E2D6]/50 uppercase tracking-widest">
-                                  // {item.gsm}
-                                </span>
-
-                              )}
-
-                              {item.size && (
-
-                                <span className="bg-[#0A0B0D] text-[#D4AF37] px-2 py-1 rounded-md border border-[#D4AF37]/30 text-[8px] font-bold uppercase tracking-wider">
-                                  SIZE: {item.size}
-                                </span>
-
-                              )}
-
-                            </div>
-
-                            <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-[#E8E2D6] group-hover:text-[#D4AF37] transition-colors leading-snug">
-                              {item.title || 'KULT ITEM'}
-                            </h3>
-
-                            <p className="text-[8px] sm:text-[9px] text-[#E8E2D6]/45 uppercase tracking-widest leading-relaxed">
-                              FABRIC: {item.fabric || 'PREMIUM FABRIC'}
-                            </p>
+                            )}
 
                           </div>
 
                           {/* ==================================================
-                              ACTIONS
+                              PRODUCT DETAILS
                           ================================================== */}
 
-                          <div className="flex flex-col xs:flex-row sm:flex-row items-start sm:items-center justify-between gap-4">
+                          <div className="flex-1 min-w-0 flex flex-col justify-between gap-5">
 
-                            {/* QUANTITY */}
+                            <div className="space-y-2.5">
 
-                            <div className="flex items-center border border-[#2D323E] bg-[#0A0B0D] rounded-xl overflow-hidden">
+                              <div className="flex flex-wrap items-center gap-2">
 
-                              <button
-                                onClick={() =>
-                                  updateQuantity(
-                                    item.id,
-                                    -1,
-                                    item.size
-                                  )
-                                }
-                                className="p-2.5 text-[#E8E2D6]/50 hover:text-[#D4AF37] hover:bg-[#12141B] transition-colors cursor-pointer"
-                              >
-
-                                <Minus className="w-3.5 h-3.5" />
-
-                              </button>
-
-                              <span className="px-4 text-xs font-bold text-[#E8E2D6] min-w-[42px] text-center">
-                                {item.quantity}
-                              </span>
-
-                              <button
-                                onClick={() =>
-                                  updateQuantity(
-                                    item.id,
-                                    1,
-                                    item.size
-                                  )
-                                }
-                                className="p-2.5 text-[#E8E2D6]/50 hover:text-[#D4AF37] hover:bg-[#12141B] transition-colors cursor-pointer"
-                              >
-
-                                <Plus className="w-3.5 h-3.5" />
-
-                              </button>
-
-                            </div>
-
-                            {/* PRICE + DELETE */}
-
-                            <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-4">
-
-                              <div className="text-left sm:text-right">
-
-                                <span className="block text-[7px] uppercase tracking-widest text-[#E8E2D6]/35">
-                                  ALLOCATION VALUE
+                                <span className="text-[8px] sm:text-[9px] text-[#D4AF37] uppercase tracking-widest font-bold break-all">
+                                  [{productId}]
                                 </span>
 
-                                <span className="block text-sm font-black text-[#D4AF37] mt-0.5">
-                                  PKR{' '}
-                                  {(
-                                    (item.price || 0) *
-                                    item.quantity
-                                  ).toLocaleString()}
-                                </span>
+                                {item.gsm && (
+
+                                  <span className="text-[8px] sm:text-[9px] text-[#E8E2D6]/50 uppercase tracking-widest">
+                                    // {item.gsm}
+                                  </span>
+
+                                )}
+
+                                {item.size && (
+
+                                  <span className="bg-[#0A0B0D] text-[#D4AF37] px-2 py-1 rounded-md border border-[#D4AF37]/30 text-[8px] font-bold uppercase tracking-wider">
+                                    SIZE: {item.size}
+                                  </span>
+
+                                )}
 
                               </div>
 
-                              <button
-                                onClick={() =>
-                                  removeItem(
-                                    item.id,
-                                    item.size
-                                  )
-                                }
-                                className="p-2.5 rounded-lg border border-[#2D323E] text-[#E8E2D6]/40 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/5 transition-all cursor-pointer shrink-0"
-                                title="Remove item"
-                              >
+                              <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-[#E8E2D6] group-hover:text-[#D4AF37] transition-colors leading-snug">
+                                {item.title ||
+                                  'KULT ITEM'}
+                              </h3>
 
-                                <Trash2 className="w-4 h-4" />
+                              <p className="text-[8px] sm:text-[9px] text-[#E8E2D6]/45 uppercase tracking-widest leading-relaxed">
+                                FABRIC:{' '}
+                                {item.fabric ||
+                                  'PREMIUM FABRIC'}
+                              </p>
 
-                              </button>
+                            </div>
+
+                            {/* ==================================================
+                                ACTIONS
+                            ================================================== */}
+
+                            <div className="flex flex-col xs:flex-row sm:flex-row items-start sm:items-center justify-between gap-4">
+
+                              {/* QUANTITY */}
+
+                              <div className="flex items-center border border-[#2D323E] bg-[#0A0B0D] rounded-xl overflow-hidden">
+
+                                <button
+                                  onClick={() =>
+                                    updateQuantity(
+                                      productId,
+                                      -1,
+                                      item.size
+                                    )
+                                  }
+                                  className="p-2.5 text-[#E8E2D6]/50 hover:text-[#D4AF37] hover:bg-[#12141B] transition-colors cursor-pointer"
+                                  type="button"
+                                >
+
+                                  <Minus className="w-3.5 h-3.5" />
+
+                                </button>
+
+                                <span className="px-4 text-xs font-bold text-[#E8E2D6] min-w-[42px] text-center">
+                                  {item.quantity}
+                                </span>
+
+                                <button
+                                  onClick={() =>
+                                    updateQuantity(
+                                      productId,
+                                      1,
+                                      item.size
+                                    )
+                                  }
+                                  className="p-2.5 text-[#E8E2D6]/50 hover:text-[#D4AF37] hover:bg-[#12141B] transition-colors cursor-pointer"
+                                  type="button"
+                                >
+
+                                  <Plus className="w-3.5 h-3.5" />
+
+                                </button>
+
+                              </div>
+
+                              {/* PRICE + DELETE */}
+
+                              <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-4">
+
+                                <div className="text-left sm:text-right">
+
+                                  <span className="block text-[7px] uppercase tracking-widest text-[#E8E2D6]/35">
+                                    ALLOCATION VALUE
+                                  </span>
+
+                                  <span className="block text-sm font-black text-[#D4AF37] mt-0.5">
+                                    PKR{' '}
+                                    {(
+                                      (item.price ||
+                                        0) *
+                                      (item.quantity ||
+                                        0)
+                                    ).toLocaleString()}
+                                  </span>
+
+                                </div>
+
+                                <button
+                                  onClick={() =>
+                                    removeItem(
+                                      productId,
+                                      item.size
+                                    )
+                                  }
+                                  className="p-2.5 rounded-lg border border-[#2D323E] text-[#E8E2D6]/40 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/5 transition-all cursor-pointer shrink-0"
+                                  title="Remove item"
+                                  type="button"
+                                >
+
+                                  <Trash2 className="w-4 h-4" />
+
+                                </button>
+
+                              </div>
 
                             </div>
 
@@ -618,11 +634,9 @@ function CartContent() {
 
                         </div>
 
-                      </div>
-
-                    </motion.div>
-
-                  ))}
+                      </motion.div>
+                    );
+                  })}
 
                 </AnimatePresence>
 
@@ -683,7 +697,8 @@ function CartContent() {
                       </span>
 
                       <span className="font-bold text-[#E8E2D6]">
-                        PKR {subtotal.toLocaleString()}
+                        PKR{' '}
+                        {subtotal.toLocaleString()}
                       </span>
 
                     </div>
@@ -725,7 +740,8 @@ function CartContent() {
                       </div>
 
                       <span className="text-lg sm:text-2xl font-black text-[#D4AF37] whitespace-nowrap">
-                        PKR {total.toLocaleString()}
+                        PKR{' '}
+                        {total.toLocaleString()}
                       </span>
 
                     </div>
@@ -739,6 +755,7 @@ function CartContent() {
                       router.push('/checkout')
                     }
                     className="w-full py-4 bg-[#D4AF37] hover:bg-[#b8952d] text-black font-black text-[10px] sm:text-xs uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 rounded-xl shadow-[0_4px_20px_rgba(212,175,55,0.25)] hover:shadow-[0_4px_25px_rgba(212,175,55,0.4)] group cursor-pointer"
+                    type="button"
                   >
 
                     <Lock className="w-4 h-4 shrink-0" />

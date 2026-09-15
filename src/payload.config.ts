@@ -13,6 +13,7 @@ import { Waitlist } from '@/collections/waitlist'
 import { Orders } from '@/collections/orders'
 import { Reviews } from '@/collections/reviews'
 import { Media } from '@/collections/media'
+import { ProductMedia } from './collections/product-media';
 
 // PATH SETUP
 const filename = fileURLToPath(import.meta.url)
@@ -75,6 +76,7 @@ export default buildConfig({
     Orders,
     Reviews,
     Media,
+    ProductMedia,
 
     // CATEGORIES
     {
